@@ -57,6 +57,10 @@
   /* 섹션 */
   .section { background: var(--card); border-radius: 18px; padding: 16px 16px 6px; margin-bottom: 14px; }
   .section h3 { font-size: 14px; color: var(--dim); margin-bottom: 12px; }
+  .txhead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .txhead h3 { margin-bottom: 12px; }
+  .txlegend { font-size: 11px; font-weight: 600; }
+  .txlegend .lgsep { color: var(--line); margin: 0 5px; }
 
   /* 집계 카드 — 겹쳐 쌓인 스택 */
   .deck { position: relative; margin-bottom: 14px; touch-action: pan-y; }
@@ -228,7 +232,7 @@
   <div id="bdDots" class="dots"></div>
 
   <div class="section">
-    <h3>거래 내역</h3>
+    <div class="txhead"><h3>거래 내역</h3><div id="txLegend" class="txlegend"></div></div>
     <div id="txList"></div>
   </div>
 
@@ -439,6 +443,10 @@ function render() {
   });
   document.getElementById("bdDots").innerHTML = TAGDIMS.map((_, i) => `<span class="dot${i === deckActive ? " on" : ""}"></span>`).join("");
   requestAnimationFrame(layoutDeck);
+
+  // 거래 내역 — 칩 축 범례 (보이는 순서대로, 색 맞춤)
+  const axisColor = (k) => k === "category" ? "var(--accent)" : k === "use" ? "#e0c060" : k === "payer" ? "#d08cff" : "#9aa3b2";
+  document.getElementById("txLegend").innerHTML = visibleDims().map((d) => `<span style="color:${axisColor(d.key)}">${esc(d.label)}</span>`).join('<span class="lgsep">/</span>');
 
   // 거래 내역 (필터 반영, 최신순, 날짜별 그룹)
   const sorted = [...filtered].sort((a, b) => new Date(b.when) - new Date(a.when));
