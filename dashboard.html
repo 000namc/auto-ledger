@@ -58,6 +58,12 @@
   .section { background: var(--card); border-radius: 18px; padding: 16px 16px 6px; margin-bottom: 14px; }
   .section h3 { font-size: 14px; color: var(--dim); margin-bottom: 12px; }
 
+  /* 집계 기준 탭 */
+  .bdtabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .bdtab { background: var(--card2); border: 1px solid var(--line); color: var(--dim);
+    padding: 6px 13px; border-radius: 9px; font-size: 13px; font-weight: 600; }
+  .bdtab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
   /* 카테고리 막대 */
   .cat { margin-bottom: 12px; }
   .cat .row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
@@ -201,7 +207,7 @@
   </div>
 
   <div class="section" id="catSection">
-    <h3>카테고리별</h3>
+    <div id="bdTabs" class="bdtabs"></div>
     <div id="cats"></div>
   </div>
 
@@ -259,6 +265,7 @@ let TOKEN = localStorage.getItem("token") || "";
 let ALL = [];           // 전체 거래
 let cursor = null;      // {y, m} 보고 있는 달 (0-based month)
 let TAGDIMS = [];       // 태그 축 정의 (서버 /api/config)
+let breakdownAxis = "category"; // 요약 박스 집계 기준 축
 let APPCFG = { monthStartDay: 1, cards: [] }; // 앱 설정
 let chipVis = JSON.parse(localStorage.getItem("chipVis") || "{}"); // {key:false}=숨김 (기기별)
 function visibleDims() { return TAGDIMS.filter((d) => chipVis[d.key] !== false); }
@@ -326,26 +333,37 @@ function render() {
     cmp.innerHTML = `지난달보다 <span class="${up ? "up" : "down"}">${up ? "▲" : "▼"} ${Math.abs(pct)}%</span>`;
   } else { cmp.textContent = ""; }
 
-  // 카테고리
-  const catMap = {};
+  // 집계 기준 축 탭 (카테고리별/용도별/결제자별/...)
+  if (!TAGDIMS.some((d) => d.key === breakdownAxis)) breakdownAxis = (TAGDIMS[0] || {}).key || "category";
+  document.getElementById("bdTabs").innerHTML = TAGDIMS.map((d) =>
+    `<button class="bdtab ${d.key === breakdownAxis ? "on" : ""}" data-bd="${esc(d.key)}">${esc(d.label)}별</button>`).join("");
+  document.querySelectorAll("#bdTabs .bdtab").forEach((b) => b.onclick = () => { breakdownAxis = b.dataset.bd; render(); });
+
+  const bdDim = dimByKey(breakdownAxis);
+  const bdMap = {};
   for (const t of inMonth) {
     const v = signedAmount(t);
-    catMap[t.category] = (catMap[t.category] || 0) + v;
+    const key = (t.tags && t.tags[breakdownAxis]) || "(없음)";
+    bdMap[key] = (bdMap[key] || 0) + v;
   }
-  const cats = Object.entries(catMap).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const cats = Object.entries(bdMap).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   const maxCat = cats.length ? cats[0][1] : 1;
-  const catDim = dimByKey("category");
   document.getElementById("cats").innerHTML = cats.length ? cats.map(([name, v]) => {
-    const cs = (catDim && catDim.style && catDim.style[name]) || {};
-    const icon = cs.icon || catIcon[name] || "lucide:tag";
+    const cs = (bdDim && bdDim.style && bdDim.style[name]) || {};
+    const icon = cs.icon || (breakdownAxis === "category" ? (catIcon[name] || "lucide:tag") : "");
     const col = cs.color || "";
+    let cls = "chip";
+    if (breakdownAxis === "category") cls += " cat";
+    else if (breakdownAxis === "use") cls += " use" + (name === "둘이" ? " together" : "");
+    else if (breakdownAxis === "payer") cls += " payer";
+    else cls += " tag";
     return `
     <div class="cat">
-      <div class="row"><span class="chip cat"${col ? ` style="color:${esc(col)}"` : ""}>${iconHTML(icon)} ${esc(name)}</span><span class="amt">${fmt(v)}</span></div>
+      <div class="row"><span class="${cls}"${col ? ` style="color:${esc(col)}"` : ""}>${iconHTML(icon)} ${esc(name)}</span><span class="amt">${fmt(v)}</span></div>
       <div class="track"><div class="fill" style="width:${Math.max(4, (v / maxCat) * 100)}%${col ? `;background:${esc(col)}` : ""}"></div></div>
     </div>`;
   }).join("") : `<div class="empty">내역 없음</div>`;
-  document.getElementById("catSection").style.display = cats.length ? "" : "none";
+  document.getElementById("catSection").style.display = "";
 
   // 거래 내역 (최신순, 날짜별 그룹)
   const sorted = [...inMonth].sort((a, b) => new Date(b.when) - new Date(a.when));
