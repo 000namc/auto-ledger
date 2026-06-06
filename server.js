@@ -44,6 +44,12 @@ const DEFAULT_TAG_DIMS = [
     values: ["식비", "카페/간식", "편의점", "쇼핑", "교통", "통신/구독", "의료", "미분류"],
     default: "미분류",
     infer: true,
+    style: {
+      "식비": { icon: "🍚", color: "" }, "카페/간식": { icon: "☕", color: "" },
+      "편의점": { icon: "🏪", color: "" }, "쇼핑": { icon: "🛒", color: "" },
+      "교통": { icon: "🚗", color: "" }, "통신/구독": { icon: "📱", color: "" },
+      "의료": { icon: "💊", color: "" }, "미분류": { icon: "❓", color: "" },
+    },
   },
 ];
 function loadTagDims() {
@@ -86,6 +92,18 @@ function cleanTags(input) {
   }
   return out;
 }
+
+// ── 앱 설정 (월 시작일, 카드 표시) ─ settings.json(.gitignore) ──
+const SETTINGS_FILE = path.join(__dirname, "settings.json");
+const DEFAULT_SETTINGS = { monthStartDay: 1, cards: [] };
+function loadSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) return { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf8")) };
+  } catch (_) {}
+  return { ...DEFAULT_SETTINGS };
+}
+function saveSettings(s) { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2)); APP_SETTINGS = s; }
+let APP_SETTINGS = loadSettings();
 
 if (!SECRET) {
   console.error("환경변수 SMS_WEBHOOK_SECRET 를 설정하세요.");
@@ -194,7 +212,30 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(401);
       return res.end("unauthorized");
     }
-    return jsonOut(res, 200, { tagDims: TAG_DIMS });
+    return jsonOut(res, 200, { tagDims: TAG_DIMS, settings: APP_SETTINGS });
+  }
+
+  // 앱 설정 저장: POST /api/appsettings?token=  body={monthStartDay?, cards?}
+  if (req.method === "POST" && req.url.startsWith("/api/appsettings")) {
+    const u = new URL(req.url, `http://${req.headers.host}`);
+    if (u.searchParams.get("token") !== SECRET) {
+      res.writeHead(401);
+      return res.end("unauthorized");
+    }
+    const body = await readBody(req);
+    let d;
+    try { d = JSON.parse(body); } catch (_) { return jsonOut(res, 400, { ok: false }); }
+    const s = { ...APP_SETTINGS };
+    if (d.monthStartDay !== undefined) {
+      const n = parseInt(d.monthStartDay, 10);
+      s.monthStartDay = Number.isFinite(n) && n >= 1 && n <= 28 ? n : 1;
+    }
+    if (Array.isArray(d.cards)) {
+      s.cards = d.cards.map((c) => ({ match: (c.match || "").toString(), label: (c.label || "").toString(), color: (c.color || "").toString() }))
+        .filter((c) => c.match);
+    }
+    saveSettings(s);
+    return jsonOut(res, 200, { ok: true, settings: s });
   }
 
   // 태그 축 저장: POST /api/tagdefs?token=  body=[{key?,label,values[],default,infer?}, ...]
@@ -215,7 +256,15 @@ const server = http.createServer(async (req, res) => {
       const values = Array.isArray(d.values) ? d.values.map((v) => v.toString().trim()).filter(Boolean) : [];
       if (!label || !values.length) return jsonOut(res, 400, { ok: false, error: "각 축에 이름과 값이 필요해요" });
       const def = values.includes(d.default) ? d.default : values[values.length - 1];
-      dims.push({ key: d.key || slug(label), label, values, default: def, infer: !!d.infer });
+      // 값별 스타일(색/아이콘) — 현재 값에 해당하는 것만 보존
+      const style = {};
+      if (d.style && typeof d.style === "object") {
+        for (const v of values) {
+          const s = d.style[v];
+          if (s && (s.color || s.icon)) style[v] = { color: s.color || "", icon: s.icon || "" };
+        }
+      }
+      dims.push({ key: d.key || slug(label), label, values, default: def, infer: !!d.infer, style });
     }
     saveTagDims(dims);
     return jsonOut(res, 200, { ok: true, tagDims: dims });

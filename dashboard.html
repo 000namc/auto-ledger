@@ -41,7 +41,9 @@
   .monthnav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
   .monthnav button { background: var(--card); border: 1px solid var(--line); color: var(--txt);
     width: 40px; height: 40px; border-radius: 12px; font-size: 18px; }
-  .monthnav h2 { font-size: 18px; }
+  .monthnav h2 { font-size: 18px; display: flex; flex-direction: column; align-items: center; }
+  .mrange { font-size: 11px; color: var(--dim); font-weight: 500; margin-top: 2px; }
+  .cdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 
   /* 총지출 카드 */
   .total { background: var(--card); border-radius: 18px; padding: 22px; text-align: center; margin-bottom: 14px; }
@@ -150,6 +152,13 @@
   .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .15s; }
   .sw.on { background: var(--minus); }
   .sw.on::after { left: 21px; }
+  /* 값 편집(이름·아이콘·색) */
+  .vlabel { font-size: 11px; color: var(--dim); margin: 4px 0 6px; }
+  .vrow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .vrow .vname { flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--line); color: var(--txt); padding: 9px; border-radius: 8px; font-size: 14px; }
+  .vrow .vicon { width: 46px; flex: none; text-align: center; background: var(--card); border: 1px solid var(--line); color: var(--txt); padding: 9px 4px; border-radius: 8px; font-size: 16px; }
+  .vrow .vcolor { width: 38px; height: 38px; flex: none; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+  .btn-addv { background: none; border: 0; color: var(--accent); font-size: 13px; padding: 2px 0 8px; }
 </style>
 </head>
 <body>
@@ -238,20 +247,27 @@ let TOKEN = localStorage.getItem("token") || "";
 let ALL = [];           // 전체 거래
 let cursor = null;      // {y, m} 보고 있는 달 (0-based month)
 let TAGDIMS = [];       // 태그 축 정의 (서버 /api/config)
+let APPCFG = { monthStartDay: 1, cards: [] }; // 앱 설정
 let chipVis = JSON.parse(localStorage.getItem("chipVis") || "{}"); // {key:false}=숨김 (기기별)
 function visibleDims() { return TAGDIMS.filter((d) => chipVis[d.key] !== false); }
+function cardOf(tx) { return (APPCFG.cards || []).find((c) => c.match && tx.cardName === c.match); }
 
 const catEmoji = { "편의점": "🏪", "카페/간식": "☕", "쇼핑": "🛒", "식비": "🍚",
   "교통": "🚗", "통신/구독": "📱", "의료": "💊", "미분류": "❓", "기타": "💳" };
 const dimByKey = (k) => TAGDIMS.find((d) => d.key === k);
 async function fetchConfig() {
   const r = await fetch("/api/config?token=" + encodeURIComponent(TOKEN));
-  if (r.ok) { const j = await r.json(); TAGDIMS = j.tagDims || []; }
+  if (r.ok) { const j = await r.json(); TAGDIMS = j.tagDims || []; if (j.settings) APPCFG = j.settings; }
 }
 
 // ---- KST 기준 날짜 헬퍼 (서버 when 은 UTC ISO) ----
 function kst(d) { return new Date(new Date(d).getTime() + 9 * 3600 * 1000); }
-function ym(d) { const k = kst(d); return { y: k.getUTCFullYear(), m: k.getUTCMonth() }; }
+function ym(d) {
+  const k = kst(d); let y = k.getUTCFullYear(), m = k.getUTCMonth();
+  const D = APPCFG.monthStartDay || 1;
+  if (k.getUTCDate() < D) { m--; if (m < 0) { m = 11; y--; } } // 시작일 전이면 직전 기간
+  return { y, m };
+}
 
 async function fetchData() {
   const r = await fetch("/api/transactions?token=" + encodeURIComponent(TOKEN));
@@ -264,7 +280,13 @@ function signedAmount(tx) { return tx.status === "취소" ? -tx.amount : tx.amou
 
 function render() {
   const { y, m } = cursor;
-  document.getElementById("monthLabel").textContent = `${y}년 ${m + 1}월`;
+  const D = APPCFG.monthStartDay || 1;
+  let label = `${y}년 ${m + 1}월`;
+  if (D > 1) {
+    const end = new Date(Date.UTC(y, m + 1, D - 1));
+    label += `<span class="mrange">${m + 1}/${D} ~ ${end.getUTCMonth() + 1}/${end.getUTCDate()}</span>`;
+  }
+  document.getElementById("monthLabel").innerHTML = label;
 
   const inMonth = ALL.filter((t) => { const a = ym(t.when); return a.y === y && a.m === m; });
 
@@ -313,12 +335,15 @@ function render() {
     const mm = String(k.getUTCMinutes()).padStart(2, "0");
     const isCancel = t.status === "취소";
     const sign = isCancel ? "+" : "-";
+    const card = cardOf(t);
     const metaBits = [`${hh}:${mm}`];
-    if (t.source === "manual") metaBits.push("직접입력"); else if (t.cardName) metaBits.push(t.cardName);
+    if (t.source === "manual") metaBits.push("직접입력"); else metaBits.push((card && card.label) || t.cardName);
     if (t.memo) metaBits.push("📝 " + t.memo);
+    const dot = card && card.color ? `<span class="cdot" style="background:${esc(card.color)}"></span>` : "";
     const chips = visibleDims().map((d) => {
       const val = t.tags && t.tags[d.key];
       if (!val) return "";
+      const st = (d.style && d.style[val]) || {};
       let cls = "chip";
       if (d.key === "category") cls += " cat";
       else if (d.key === "use") cls += " use" + (val === "둘이" ? " together" : "");
@@ -326,14 +351,16 @@ function render() {
       else cls += " tag";
       const togglable = d.values.length === 2;
       if (togglable) cls += " toggle";
-      const emo = d.key === "category" ? `<span class="emo">${catEmoji[val] || "🏷️"}</span>` : "";
+      const icon = st.icon || (d.key === "category" ? (catEmoji[val] || "") : "");
+      const emo = icon ? `<span class="emo">${icon}</span>` : "";
       const swap = togglable ? `<span class="sw2">⇄</span>` : "";
-      return `<span class="${cls}"${togglable ? ` data-dim="${esc(d.key)}"` : ""}>${emo}${esc(val)}${swap}</span>`;
+      const colorStyle = st.color ? ` style="color:${esc(st.color)}"` : "";
+      return `<span class="${cls}"${colorStyle}${togglable ? ` data-dim="${esc(d.key)}"` : ""}>${emo}${esc(val)}${swap}</span>`;
     }).join("");
     html += `
       <div class="tx ${isCancel ? "cancel" : ""}" data-id="${esc(t.id)}">
         <div class="left">
-          <div class="m">${esc(t.merchant) || "(가맹점 미상)"}${isCancel ? '<span class="pill">취소</span>' : ""}${t.installment && t.installment !== "일시불" ? `<span class="pill">${esc(t.installment)}</span>` : ""}</div>
+          <div class="m">${dot}${esc(t.merchant) || "(가맹점 미상)"}${isCancel ? '<span class="pill">취소</span>' : ""}${t.installment && t.installment !== "일시불" ? `<span class="pill">${esc(t.installment)}</span>` : ""}</div>
           <div class="meta">${metaBits.map(esc).join(" · ")}</div>
           <div class="chiprow">${chips}</div>
         </div>
@@ -491,6 +518,7 @@ document.getElementById("txList").addEventListener("click", async (e) => {
 const settings = document.getElementById("settings");
 let settingsPage = "menu";
 let axisDraft = []; // 편집 중인 축 배열
+let cardsDraft = []; // 편집 중인 카드 배열
 
 function openSettings() { settingsPage = "menu"; renderSettings(); settings.classList.remove("hidden"); }
 function closeSettings() { settings.classList.add("hidden"); }
@@ -502,17 +530,32 @@ settings.onclick = (e) => { if (e.target === settings) closeSettings(); };
 function renderSettings() {
   const body = document.getElementById("settingsBody");
   document.getElementById("sBack").classList.toggle("hidden", settingsPage === "menu");
-  document.getElementById("sTitle").textContent =
-    settingsPage === "tags" ? "태그 관리" : settingsPage === "view" ? "거래내역 뷰" : "설정";
+  const titles = { tags: "태그 관리", view: "거래내역 뷰", month: "월 시작일", cards: "카드 관리" };
+  document.getElementById("sTitle").textContent = titles[settingsPage] || "설정";
   if (settingsPage === "menu") {
     body.innerHTML =
       `<div class="slist">
         <button class="srow" data-go="tags"><span>🏷️ 태그 관리</span><span class="chev">›</span></button>
         <button class="srow" data-go="view"><span>👁️ 거래내역 뷰</span><span class="chev">›</span></button>
+        <button class="srow" data-go="month"><span>📅 월 시작일</span><span class="chev">›</span></button>
+        <button class="srow" data-go="cards"><span>💳 카드 관리</span><span class="chev">›</span></button>
         <button class="srow" id="miLogout"><span>🚪 로그아웃</span><span class="chev">›</span></button>
       </div>`;
     body.querySelectorAll("[data-go]").forEach((el) => el.onclick = () => { settingsPage = el.dataset.go; renderSettings(); });
     document.getElementById("miLogout").onclick = () => { if (confirm("로그아웃할까요?")) { localStorage.removeItem("token"); location.reload(); } };
+  } else if (settingsPage === "month") {
+    body.innerHTML =
+      `<p class="hint">매월 며칠을 한 달의 시작으로 볼지 정해요. 급여일(예: 25)로 맞추면 급여 기준 가계부가 됩니다. 1이면 일반 달력.</p>` +
+      `<div class="field"><label>시작일 (1~28)</label><input id="msDay" type="number" min="1" max="28" value="${APPCFG.monthStartDay || 1}" /></div>` +
+      `<div class="actions"><button class="btn-save" id="msSave">저장</button></div>`;
+    document.getElementById("msSave").onclick = async () => {
+      const v = parseInt(document.getElementById("msDay").value, 10);
+      const r = await fetch("/api/appsettings?token=" + encodeURIComponent(TOKEN), { method: "POST", body: JSON.stringify({ monthStartDay: v }) });
+      if (!r.ok) { alert("저장 실패"); return; }
+      cursor = null; settingsPage = "menu"; renderSettings(); await load();
+    };
+  } else if (settingsPage === "cards") {
+    renderCardsPage(body);
   } else if (settingsPage === "view") {
     body.innerHTML =
       `<p class="hint">거래 목록에 보여줄 태그 칩을 선택해요. (기기별 설정)</p><div class="slist">` +
@@ -529,11 +572,37 @@ function renderSettings() {
       `<p class="hint">거래 분류 축을 추가·수정해요. (카테고리는 가맹점으로 자동 추정)</p>` +
       `<div id="axisList"></div><button id="addAxis" class="btn-add">+ 축 추가</button>` +
       `<div class="actions"><button class="btn-save" id="sSave">저장</button></div>`;
-    axisDraft = JSON.parse(JSON.stringify(TAGDIMS));
+    axisDraft = TAGDIMS.map((d) => ({
+      key: d.key, label: d.label, infer: !!d.infer, default: d.default,
+      vals: (d.values || []).map((v) => ({ v, icon: (d.style && d.style[v] && d.style[v].icon) || "", color: (d.style && d.style[v] && d.style[v].color) || "" })),
+    }));
     renderAxisList();
-    document.getElementById("addAxis").onclick = () => { axisDraft.push({ label: "", values: [], default: "" }); renderAxisList(); };
+    document.getElementById("addAxis").onclick = () => { axisDraft.push({ label: "", infer: false, default: "", vals: [{ v: "", icon: "", color: "" }] }); renderAxisList(); };
     document.getElementById("sSave").onclick = saveAxes;
   }
+}
+
+function renderCardsPage(body) {
+  const names = [...new Set(ALL.filter((t) => t.source !== "manual" && t.cardName).map((t) => t.cardName))];
+  const existing = APPCFG.cards || [];
+  cardsDraft = names.map((nm) => { const e = existing.find((c) => c.match === nm) || {}; return { match: nm, label: e.label || "", color: e.color || "#6c8cff" }; });
+  body.innerHTML = `<p class="hint">카드별 표시명·색을 정해요. 거래내역에 색점으로 구분돼요.</p><div id="cardList"></div>` +
+    (cardsDraft.length ? `<div class="actions"><button class="btn-save" id="cardSave">저장</button></div>` : "");
+  document.getElementById("cardList").innerHTML = cardsDraft.length ? cardsDraft.map((c, i) =>
+    `<div class="axis-edit">` +
+      `<div class="arow"><span class="cdot" style="background:${esc(c.color)}"></span><b style="font-size:13px">${esc(c.match)}</b></div>` +
+      `<div class="arow"><span class="alabel">표시명</span><input data-i="${i}" data-f="label" value="${esc(c.label)}" placeholder="${esc(c.match)}"/></div>` +
+      `<div class="arow"><span class="alabel">색</span><input type="color" data-i="${i}" data-f="color" value="${esc(c.color)}"/></div>` +
+    `</div>`).join("") : `<div class="empty">표시할 카드가 없어요 (거래가 쌓이면 자동으로 나타나요)</div>`;
+  document.querySelectorAll("#cardList input").forEach((inp) => {
+    const ev = inp.type === "color" ? "onchange" : "oninput";
+    inp[ev] = () => { cardsDraft[+inp.dataset.i][inp.dataset.f] = inp.value; if (inp.type === "color") renderCardsPage(body); };
+  });
+  if (cardsDraft.length) document.getElementById("cardSave").onclick = async () => {
+    const r = await fetch("/api/appsettings?token=" + encodeURIComponent(TOKEN), { method: "POST", body: JSON.stringify({ cards: cardsDraft }) });
+    if (!r.ok) { alert("저장 실패"); return; }
+    settingsPage = "menu"; renderSettings(); await load();
+  };
 }
 
 function renderAxisList() {
@@ -543,35 +612,48 @@ function renderAxisList() {
     const box = document.createElement("div");
     box.className = "axis-edit";
     const infer = !!ax.infer;
-    box.innerHTML =
-      `<div class="arow"><span class="alabel">이름</span>` +
-        `<input data-i="${i}" data-f="label" value="${esc(ax.label || "")}" placeholder="예: 용도" ${infer ? "readonly" : ""}/>` +
-        (infer ? `<span class="locked">자동분류</span>` : `<button class="axdel" data-del="${i}">✕</button>`) +
-      `</div>` +
-      `<div class="arow"><span class="alabel">값</span>` +
-        `<input data-i="${i}" data-f="values" value="${esc((ax.values || []).join(", "))}" placeholder="쉼표로 구분: 혼자, 둘이"/></div>` +
-      `<div class="arow"><span class="alabel">기본값</span>` +
-        `<input data-i="${i}" data-f="default" value="${esc(ax.default || "")}" placeholder="기본값"/></div>`;
+    let h = `<div class="arow"><span class="alabel">이름</span>` +
+      `<input data-i="${i}" data-f="label" value="${esc(ax.label || "")}" placeholder="예: 용도"/>` +
+      (infer ? `<span class="locked">자동</span>` : `<button class="axdel" data-del="${i}">✕</button>`) + `</div>`;
+    h += `<div class="vlabel">값 · 아이콘 · 색</div>`;
+    ax.vals.forEach((vv, j) => {
+      h += `<div class="vrow">` +
+        `<input class="vname" data-i="${i}" data-j="${j}" data-f="v" value="${esc(vv.v)}" placeholder="값"/>` +
+        `<input class="vicon" data-i="${i}" data-j="${j}" data-f="icon" value="${esc(vv.icon)}" placeholder="🙂"/>` +
+        `<input class="vcolor" type="color" data-i="${i}" data-j="${j}" data-f="color" value="${vv.color || "#888888"}"/>` +
+        `<button class="axdel" data-vdel="${i}.${j}">✕</button></div>`;
+    });
+    h += `<button class="btn-addv" data-addv="${i}">+ 값 추가</button>`;
+    h += `<div class="arow"><span class="alabel">기본값</span><select data-i="${i}" data-f="default">` +
+      ax.vals.map((vv) => `<option value="${esc(vv.v)}" ${vv.v === ax.default ? "selected" : ""}>${esc(vv.v || "(빈값)")}</option>`).join("") + `</select></div>`;
+    box.innerHTML = h;
     list.appendChild(box);
   });
-  // 입력 반영
   list.querySelectorAll("input").forEach((inp) => {
-    inp.oninput = () => {
+    const set = () => {
       const i = +inp.dataset.i, f = inp.dataset.f;
-      if (f === "values") axisDraft[i].values = inp.value.split(",").map((s) => s.trim()).filter(Boolean);
+      if (inp.dataset.j !== undefined) axisDraft[i].vals[+inp.dataset.j][f] = inp.value;
       else axisDraft[i][f] = inp.value;
     };
+    if (inp.type === "color") inp.onchange = set; else inp.oninput = set;
   });
-  list.querySelectorAll("[data-del]").forEach((btn) => {
-    btn.onclick = () => { axisDraft.splice(+btn.dataset.del, 1); renderAxisList(); };
-  });
+  list.querySelectorAll("select").forEach((sel) => sel.onchange = () => { axisDraft[+sel.dataset.i].default = sel.value; });
+  list.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => { axisDraft.splice(+b.dataset.del, 1); renderAxisList(); });
+  list.querySelectorAll("[data-vdel]").forEach((b) => b.onclick = () => { const [i, j] = b.dataset.vdel.split(".").map(Number); axisDraft[i].vals.splice(j, 1); renderAxisList(); });
+  list.querySelectorAll("[data-addv]").forEach((b) => b.onclick = () => { axisDraft[+b.dataset.addv].vals.push({ v: "", icon: "", color: "" }); renderAxisList(); });
 }
 async function saveAxes() {
+  const dims = [];
   for (const ax of axisDraft) {
-    if (!ax.label || !ax.values || !ax.values.length) { alert("각 축에 이름과 값을 넣어주세요"); return; }
-    if (!ax.values.includes(ax.default)) ax.default = ax.values[ax.values.length - 1];
+    if (!ax.label || !ax.label.trim()) { alert("축 이름을 넣어주세요"); return; }
+    const values = ax.vals.map((x) => (x.v || "").trim()).filter(Boolean);
+    if (!values.length) { alert(`'${ax.label}' 축에 값이 필요해요`); return; }
+    const style = {};
+    ax.vals.forEach((x) => { const v = (x.v || "").trim(); const col = x.color && x.color.toLowerCase() !== "#888888" ? x.color : ""; if (v && (x.icon || col)) style[v] = { icon: x.icon || "", color: col }; });
+    let def = ax.default; if (!values.includes(def)) def = values[values.length - 1];
+    dims.push({ key: ax.key, label: ax.label.trim(), values, default: def, infer: !!ax.infer, style });
   }
-  const r = await fetch("/api/tagdefs?token=" + encodeURIComponent(TOKEN), { method: "POST", body: JSON.stringify(axisDraft) });
+  const r = await fetch("/api/tagdefs?token=" + encodeURIComponent(TOKEN), { method: "POST", body: JSON.stringify(dims) });
   if (!r.ok) { alert("저장 실패"); return; }
   settingsPage = "menu"; renderSettings();
   await load();
