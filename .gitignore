@@ -2,12 +2,14 @@
 .webhook_secret
 .env
 
-# 개인 결제 데이터 (민감정보)
+# 개인 결제 데이터 (민감정보) — .jsonl 데이터는 전부 제외(실수 방지)
+*.jsonl
 transactions.jsonl
 captured.jsonl
 transactions.bak.*.jsonl
 seed.jsonl
 stats.txt
+*.bak
 
 # 카드사에서 받은 원본 내역 파일
 *.xls
