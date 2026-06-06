@@ -26,7 +26,10 @@
 
   /* 로그인 */
   #login { min-height: 70vh; display: flex; flex-direction: column; justify-content: center; gap: 16px; }
-  #login h1 { font-size: 22px; text-align: center; }
+  #login h1 { font-size: 22px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .logo-lg { width: 30px; height: 30px; border-radius: 8px; }
+  .logo { width: 22px; height: 22px; border-radius: 6px; vertical-align: middle; }
+  .apptitle { display: inline-flex; align-items: center; gap: 7px; }
   #login p { color: var(--dim); text-align: center; margin: 0; font-size: 14px; }
   #login input { background: var(--card); border: 1px solid var(--line); color: var(--txt);
     padding: 14px; border-radius: 12px; font-size: 16px; }
@@ -101,14 +104,19 @@
   .mhead .mh-m { font-size: 16px; font-weight: 700; }
   .mhead .mh-a { font-size: 13px; color: var(--dim); margin-top: 3px; }
   .tx { cursor: pointer; }
-  .chiprow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
-  .chip { display: inline-flex; align-items: center; font-size: 11px; padding: 2px 8px; border-radius: 8px; background: var(--card2); }
+  .chiprow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  /* 모든 칩 동일 높이/폰트 */
+  .chip { display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 9px;
+    font-size: 12px; line-height: 1; border-radius: 9px; background: var(--card2); white-space: nowrap; }
+  .chip .emo { font-size: 12px; }
   .chip.cat { color: var(--accent); }
-  .chip.use { color: #e0c060; cursor: pointer; } /* 톡 누르면 토글 */
+  .chip.use { color: #e0c060; }
   .chip.use.together { color: #6ad1a0; }
   .chip.payer { color: #d08cff; }
   .chip.tag { color: #9aa3b2; }
-  .chip.toggle { cursor: pointer; }
+  /* 토글 가능한 칩 = 버튼처럼 (테두리 + ⇄) */
+  .chip.toggle { cursor: pointer; border: 1px solid currentColor; background: transparent; font-weight: 600; }
+  .chip.toggle .sw2 { opacity: .55; font-size: 11px; margin-left: 1px; }
   .total .split { font-size: 12px; color: var(--dim); margin-top: 8px; }
 
   /* 상단바 + 설정 */
@@ -127,12 +135,27 @@
   .axis-edit .alabel { font-size: 11px; color: var(--dim); width: 44px; flex: none; }
   .axis-edit .axdel { background: none; border: 0; color: var(--plus); font-size: 18px; flex: none; width: 28px; }
   .axis-edit .locked { color: var(--dim); font-size: 11px; }
+
+  /* 설정 헤더/메뉴/스위치 */
+  .shead { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+  .shead h3 { flex: 1; margin: 0; font-size: 18px; }
+  .iconbtn { background: var(--card2); border: 1px solid var(--line); color: var(--txt);
+    width: 34px; height: 34px; border-radius: 10px; font-size: 16px; flex: none; }
+  .slist { display: flex; flex-direction: column; gap: 9px; }
+  .srow { display: flex; align-items: center; justify-content: space-between; width: 100%;
+    background: var(--card2); border: 1px solid var(--line); color: var(--txt);
+    padding: 15px 16px; border-radius: 13px; font-size: 15px; text-align: left; }
+  .srow .chev { color: var(--dim); font-size: 18px; }
+  .sw { width: 46px; height: 28px; border-radius: 14px; background: var(--line); position: relative; flex: none; transition: background .15s; cursor: pointer; }
+  .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .sw.on { background: var(--minus); }
+  .sw.on::after { left: 21px; }
 </style>
 </head>
 <body>
 
 <div id="login">
-  <h1>🐔 우리 가계부</h1>
+  <h1><img src="/icon.png" class="logo-lg" alt="" /> 우리 가계부</h1>
   <p>접속 암호를 입력하세요</p>
   <input id="pw" type="password" inputmode="text" placeholder="암호" autocomplete="current-password" />
   <button id="loginBtn">들어가기</button>
@@ -141,8 +164,8 @@
 
 <div id="app" class="hidden">
   <div class="apptop">
-    <span class="apptitle">🐔 우리 가계부</span>
-    <button id="settingsBtn" class="gear" title="태그 설정">⚙️</button>
+    <span class="apptitle"><img src="/icon.png" class="logo" alt="" /> 우리 가계부</span>
+    <button id="settingsBtn" class="gear" title="설정">⚙️</button>
   </div>
   <div class="monthnav">
     <button id="prev">‹</button>
@@ -199,14 +222,12 @@
 
 <div id="settings" class="modal-bg hidden">
   <div class="modal">
-    <h3>태그 축 설정</h3>
-    <p class="hint">거래를 분류하는 축을 추가/수정해요. (카테고리는 가맹점으로 자동 추정)</p>
-    <div id="axisList"></div>
-    <button id="addAxis" class="btn-add">+ 축 추가</button>
-    <div class="actions">
-      <button class="btn-cancel" id="sCancel">취소</button>
-      <button class="btn-save" id="sSave">저장</button>
+    <div class="shead">
+      <button id="sBack" class="iconbtn hidden">‹</button>
+      <h3 id="sTitle">설정</h3>
+      <button id="sClose" class="iconbtn">✕</button>
     </div>
+    <div id="settingsBody"></div>
   </div>
 </div>
 
@@ -217,14 +238,12 @@ let TOKEN = localStorage.getItem("token") || "";
 let ALL = [];           // 전체 거래
 let cursor = null;      // {y, m} 보고 있는 달 (0-based month)
 let TAGDIMS = [];       // 태그 축 정의 (서버 /api/config)
+let chipVis = JSON.parse(localStorage.getItem("chipVis") || "{}"); // {key:false}=숨김 (기기별)
+function visibleDims() { return TAGDIMS.filter((d) => chipVis[d.key] !== false); }
 
 const catEmoji = { "편의점": "🏪", "카페/간식": "☕", "쇼핑": "🛒", "식비": "🍚",
   "교통": "🚗", "통신/구독": "📱", "의료": "💊", "미분류": "❓", "기타": "💳" };
 const dimByKey = (k) => TAGDIMS.find((d) => d.key === k);
-function chipText(dim, val) {
-  if (dim.key === "category") return (catEmoji[val] || "🏷") + " " + val;
-  return val;
-}
 async function fetchConfig() {
   const r = await fetch("/api/config?token=" + encodeURIComponent(TOKEN));
   if (r.ok) { const j = await r.json(); TAGDIMS = j.tagDims || []; }
@@ -297,7 +316,7 @@ function render() {
     const metaBits = [`${hh}:${mm}`];
     if (t.source === "manual") metaBits.push("직접입력"); else if (t.cardName) metaBits.push(t.cardName);
     if (t.memo) metaBits.push("📝 " + t.memo);
-    const chips = TAGDIMS.map((d) => {
+    const chips = visibleDims().map((d) => {
       const val = t.tags && t.tags[d.key];
       if (!val) return "";
       let cls = "chip";
@@ -307,7 +326,9 @@ function render() {
       else cls += " tag";
       const togglable = d.values.length === 2;
       if (togglable) cls += " toggle";
-      return `<span class="${cls}"${togglable ? ` data-dim="${esc(d.key)}"` : ""}>${esc(chipText(d, val))}</span>`;
+      const emo = d.key === "category" ? `<span class="emo">${catEmoji[val] || "🏷️"}</span>` : "";
+      const swap = togglable ? `<span class="sw2">⇄</span>` : "";
+      return `<span class="${cls}"${togglable ? ` data-dim="${esc(d.key)}"` : ""}>${emo}${esc(val)}${swap}</span>`;
     }).join("");
     html += `
       <div class="tx ${isCancel ? "cancel" : ""}" data-id="${esc(t.id)}">
@@ -466,9 +487,55 @@ document.getElementById("txList").addEventListener("click", async (e) => {
   openEditModal(tx);
 });
 
-// ---- 태그 축 설정 화면 ----
+// ---- 설정 화면 (페이지형) ----
 const settings = document.getElementById("settings");
+let settingsPage = "menu";
 let axisDraft = []; // 편집 중인 축 배열
+
+function openSettings() { settingsPage = "menu"; renderSettings(); settings.classList.remove("hidden"); }
+function closeSettings() { settings.classList.add("hidden"); }
+document.getElementById("settingsBtn").onclick = openSettings;
+document.getElementById("sClose").onclick = closeSettings;
+document.getElementById("sBack").onclick = () => { settingsPage = "menu"; renderSettings(); };
+settings.onclick = (e) => { if (e.target === settings) closeSettings(); };
+
+function renderSettings() {
+  const body = document.getElementById("settingsBody");
+  document.getElementById("sBack").classList.toggle("hidden", settingsPage === "menu");
+  document.getElementById("sTitle").textContent =
+    settingsPage === "tags" ? "태그 관리" : settingsPage === "view" ? "거래내역 뷰" : "설정";
+  if (settingsPage === "menu") {
+    body.innerHTML =
+      `<div class="slist">
+        <button class="srow" data-go="tags"><span>🏷️ 태그 관리</span><span class="chev">›</span></button>
+        <button class="srow" data-go="view"><span>👁️ 거래내역 뷰</span><span class="chev">›</span></button>
+        <button class="srow" id="miLogout"><span>🚪 로그아웃</span><span class="chev">›</span></button>
+      </div>`;
+    body.querySelectorAll("[data-go]").forEach((el) => el.onclick = () => { settingsPage = el.dataset.go; renderSettings(); });
+    document.getElementById("miLogout").onclick = () => { if (confirm("로그아웃할까요?")) { localStorage.removeItem("token"); location.reload(); } };
+  } else if (settingsPage === "view") {
+    body.innerHTML =
+      `<p class="hint">거래 목록에 보여줄 태그 칩을 선택해요. (기기별 설정)</p><div class="slist">` +
+      TAGDIMS.map((d) => `<div class="srow"><span>${esc(d.label)}</span><span class="sw ${chipVis[d.key] !== false ? "on" : ""}" data-vis="${esc(d.key)}"></span></div>`).join("") +
+      `</div>`;
+    body.querySelectorAll("[data-vis]").forEach((sw) => sw.onclick = () => {
+      const k = sw.dataset.vis;
+      if (chipVis[k] === false) delete chipVis[k]; else chipVis[k] = false;
+      localStorage.setItem("chipVis", JSON.stringify(chipVis));
+      renderSettings(); render();
+    });
+  } else if (settingsPage === "tags") {
+    body.innerHTML =
+      `<p class="hint">거래 분류 축을 추가·수정해요. (카테고리는 가맹점으로 자동 추정)</p>` +
+      `<div id="axisList"></div><button id="addAxis" class="btn-add">+ 축 추가</button>` +
+      `<div class="actions"><button class="btn-save" id="sSave">저장</button></div>`;
+    axisDraft = JSON.parse(JSON.stringify(TAGDIMS));
+    renderAxisList();
+    document.getElementById("addAxis").onclick = () => { axisDraft.push({ label: "", values: [], default: "" }); renderAxisList(); };
+    document.getElementById("sSave").onclick = saveAxes;
+  }
+}
+
 function renderAxisList() {
   const list = document.getElementById("axisList");
   list.innerHTML = "";
@@ -499,25 +566,16 @@ function renderAxisList() {
     btn.onclick = () => { axisDraft.splice(+btn.dataset.del, 1); renderAxisList(); };
   });
 }
-function openSettings() {
-  axisDraft = JSON.parse(JSON.stringify(TAGDIMS)); // 깊은 복사
-  renderAxisList();
-  settings.classList.remove("hidden");
-}
-document.getElementById("settingsBtn").onclick = openSettings;
-document.getElementById("sCancel").onclick = () => settings.classList.add("hidden");
-settings.onclick = (e) => { if (e.target === settings) settings.classList.add("hidden"); };
-document.getElementById("addAxis").onclick = () => { axisDraft.push({ label: "", values: [], default: "" }); renderAxisList(); };
-document.getElementById("sSave").onclick = async () => {
+async function saveAxes() {
   for (const ax of axisDraft) {
     if (!ax.label || !ax.values || !ax.values.length) { alert("각 축에 이름과 값을 넣어주세요"); return; }
     if (!ax.values.includes(ax.default)) ax.default = ax.values[ax.values.length - 1];
   }
   const r = await fetch("/api/tagdefs?token=" + encodeURIComponent(TOKEN), { method: "POST", body: JSON.stringify(axisDraft) });
   if (!r.ok) { alert("저장 실패"); return; }
-  settings.classList.add("hidden");
+  settingsPage = "menu"; renderSettings();
   await load();
-};
+}
 
 function showApp() { document.getElementById("login").classList.add("hidden"); document.getElementById("app").classList.remove("hidden"); document.getElementById("fab").classList.remove("hidden"); }
 function showLogin() { document.getElementById("app").classList.add("hidden"); document.getElementById("login").classList.remove("hidden"); document.getElementById("fab").classList.add("hidden"); }
