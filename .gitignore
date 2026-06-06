@@ -21,3 +21,6 @@ node_modules/
 
 # 레거시(서버.js로 대체됨)
 capture-server.js
+
+# 개인 태그 축 정의 (용도/결제자 등)
+tags.json

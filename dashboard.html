@@ -101,8 +101,32 @@
   .mhead .mh-m { font-size: 16px; font-weight: 700; }
   .mhead .mh-a { font-size: 13px; color: var(--dim); margin-top: 3px; }
   .tx { cursor: pointer; }
-  .tx .catchip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 8px;
-    background: var(--card2); color: var(--accent); margin-top: 4px; }
+  .chiprow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+  .chip { display: inline-flex; align-items: center; font-size: 11px; padding: 2px 8px; border-radius: 8px; background: var(--card2); }
+  .chip.cat { color: var(--accent); }
+  .chip.use { color: #e0c060; cursor: pointer; } /* 톡 누르면 토글 */
+  .chip.use.together { color: #6ad1a0; }
+  .chip.payer { color: #d08cff; }
+  .chip.tag { color: #9aa3b2; }
+  .chip.toggle { cursor: pointer; }
+  .total .split { font-size: 12px; color: var(--dim); margin-top: 8px; }
+
+  /* 상단바 + 설정 */
+  .apptop { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .apptop .apptitle { font-size: 16px; font-weight: 700; }
+  .gear { background: var(--card); border: 1px solid var(--line); color: var(--txt);
+    width: 38px; height: 38px; border-radius: 12px; font-size: 16px; }
+  .hint { color: var(--dim); font-size: 12px; margin: -8px 0 14px; }
+  .btn-add { width: 100%; background: var(--card2); color: var(--accent); border: 1px dashed var(--line);
+    padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+  .axis-edit { background: var(--card2); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+  .axis-edit .arow { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .axis-edit .arow:last-child { margin-bottom: 0; }
+  .axis-edit input, .axis-edit select { flex: 1; background: var(--card); border: 1px solid var(--line);
+    color: var(--txt); padding: 9px; border-radius: 8px; font-size: 14px; min-width: 0; }
+  .axis-edit .alabel { font-size: 11px; color: var(--dim); width: 44px; flex: none; }
+  .axis-edit .axdel { background: none; border: 0; color: var(--plus); font-size: 18px; flex: none; width: 28px; }
+  .axis-edit .locked { color: var(--dim); font-size: 11px; }
 </style>
 </head>
 <body>
@@ -116,6 +140,10 @@
 </div>
 
 <div id="app" class="hidden">
+  <div class="apptop">
+    <span class="apptitle">🐔 우리 가계부</span>
+    <button id="settingsBtn" class="gear" title="태그 설정">⚙️</button>
+  </div>
   <div class="monthnav">
     <button id="prev">‹</button>
     <h2 id="monthLabel">—</h2>
@@ -159,20 +187,25 @@
       <div class="field"><label>금액 (원)</label><input id="mAmount" type="number" inputmode="numeric" placeholder="0" /></div>
       <div class="field"><label>날짜 / 시각</label><input id="mWhen" type="datetime-local" /></div>
     </div>
-    <div class="field">
-      <label>카테고리</label>
-      <select id="mCategory">
-        <option value="">자동 분류</option>
-        <option>식비</option><option>카페/간식</option><option>편의점</option>
-        <option>쇼핑</option><option>교통</option><option>통신/구독</option>
-        <option>의료</option><option>기타</option>
-      </select>
-    </div>
+    <div id="tagControls"></div>
     <div class="field"><label>메모 (선택)</label><input id="mMemo" placeholder="둘이 정리할 메모" /></div>
     <div class="actions">
       <button class="btn-cancel" id="mCancel">취소</button>
       <button class="btn-del hidden" id="mDelete">삭제</button>
       <button class="btn-save" id="mSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<div id="settings" class="modal-bg hidden">
+  <div class="modal">
+    <h3>태그 축 설정</h3>
+    <p class="hint">거래를 분류하는 축을 추가/수정해요. (카테고리는 가맹점으로 자동 추정)</p>
+    <div id="axisList"></div>
+    <button id="addAxis" class="btn-add">+ 축 추가</button>
+    <div class="actions">
+      <button class="btn-cancel" id="sCancel">취소</button>
+      <button class="btn-save" id="sSave">저장</button>
     </div>
   </div>
 </div>
@@ -183,6 +216,19 @@ const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": 
 let TOKEN = localStorage.getItem("token") || "";
 let ALL = [];           // 전체 거래
 let cursor = null;      // {y, m} 보고 있는 달 (0-based month)
+let TAGDIMS = [];       // 태그 축 정의 (서버 /api/config)
+
+const catEmoji = { "편의점": "🏪", "카페/간식": "☕", "쇼핑": "🛒", "식비": "🍚",
+  "교통": "🚗", "통신/구독": "📱", "의료": "💊", "미분류": "❓", "기타": "💳" };
+const dimByKey = (k) => TAGDIMS.find((d) => d.key === k);
+function chipText(dim, val) {
+  if (dim.key === "category") return (catEmoji[val] || "🏷") + " " + val;
+  return val;
+}
+async function fetchConfig() {
+  const r = await fetch("/api/config?token=" + encodeURIComponent(TOKEN));
+  if (r.ok) { const j = await r.json(); TAGDIMS = j.tagDims || []; }
+}
 
 // ---- KST 기준 날짜 헬퍼 (서버 when 은 UTC ISO) ----
 function kst(d) { return new Date(new Date(d).getTime() + 9 * 3600 * 1000); }
@@ -227,8 +273,6 @@ function render() {
   }
   const cats = Object.entries(catMap).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   const maxCat = cats.length ? cats[0][1] : 1;
-  const catEmoji = { "편의점": "🏪", "카페/간식": "☕", "쇼핑": "🛒", "식비": "🍚",
-    "교통": "🚗", "통신/구독": "📱", "의료": "💊", "기타": "💳" };
   document.getElementById("cats").innerHTML = cats.length ? cats.map(([name, v]) => `
     <div class="cat">
       <div class="row"><span class="name">${catEmoji[name] || "💳"} ${name}</span><span class="amt">${fmt(v)}</span></div>
@@ -253,13 +297,24 @@ function render() {
     const metaBits = [`${hh}:${mm}`];
     if (t.source === "manual") metaBits.push("직접입력"); else if (t.cardName) metaBits.push(t.cardName);
     if (t.memo) metaBits.push("📝 " + t.memo);
-    const em = catEmoji[t.category] || "💳";
+    const chips = TAGDIMS.map((d) => {
+      const val = t.tags && t.tags[d.key];
+      if (!val) return "";
+      let cls = "chip";
+      if (d.key === "category") cls += " cat";
+      else if (d.key === "use") cls += " use" + (val === "둘이" ? " together" : "");
+      else if (d.key === "payer") cls += " payer";
+      else cls += " tag";
+      const togglable = d.values.length === 2;
+      if (togglable) cls += " toggle";
+      return `<span class="${cls}"${togglable ? ` data-dim="${esc(d.key)}"` : ""}>${esc(chipText(d, val))}</span>`;
+    }).join("");
     html += `
       <div class="tx ${isCancel ? "cancel" : ""}" data-id="${esc(t.id)}">
         <div class="left">
           <div class="m">${esc(t.merchant) || "(가맹점 미상)"}${isCancel ? '<span class="pill">취소</span>' : ""}${t.installment && t.installment !== "일시불" ? `<span class="pill">${esc(t.installment)}</span>` : ""}</div>
           <div class="meta">${metaBits.map(esc).join(" · ")}</div>
-          <span class="catchip">${em} ${esc(t.category)}</span>
+          <div class="chiprow">${chips}</div>
         </div>
         <div class="amt ${isCancel ? "refund" : ""}">${sign}${fmt(t.amount)}</div>
       </div>`;
@@ -272,7 +327,7 @@ function setUpdated() {
 }
 
 async function load() {
-  await fetchData();
+  await Promise.all([fetchData(), fetchConfig()]);
   if (!cursor) { const now = kst(new Date().toISOString()); cursor = { y: now.getUTCFullYear(), m: now.getUTCMonth() }; }
   render();
   setUpdated();
@@ -285,10 +340,48 @@ document.getElementById("next").onclick = () => { cursor = cursor.m === 11 ? { y
 const modal = document.getElementById("modal");
 let mType = "승인";
 let editingId = null; // null=추가, 값=편집
+let tagSel = {};      // 모달에서 고른 태그값 {key: value}  (""=자동/기본)
 document.querySelectorAll("#segType button").forEach((b) => b.onclick = () => {
   mType = b.dataset.v;
   document.querySelectorAll("#segType button").forEach((x) => x.classList.toggle("on", x === b));
 });
+
+// 태그 축들을 모달에 동적으로 그림. storedTags=편집 대상의 명시 태그(없으면 자동/기본)
+function buildTagControls(storedTags, isEdit) {
+  tagSel = {};
+  const cont = document.getElementById("tagControls");
+  cont.innerHTML = "";
+  for (const d of TAGDIMS) {
+    const init = isEdit
+      ? ((storedTags && storedTags[d.key]) || (d.infer ? "" : d.default))
+      : (d.infer ? "" : d.default);
+    tagSel[d.key] = init;
+    const field = document.createElement("div");
+    field.className = "field";
+    const lab = document.createElement("label");
+    lab.textContent = d.label + (d.infer ? " (비우면 자동분류)" : "");
+    field.appendChild(lab);
+    const opts = d.infer ? [["", "자동"]].concat(d.values.map((v) => [v, v])) : d.values.map((v) => [v, v]);
+    if (opts.length <= 4) {
+      const seg = document.createElement("div");
+      seg.className = "seg";
+      opts.forEach(([val, labl]) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.textContent = labl;
+        if (val === init) b.classList.add("on");
+        b.onclick = () => { tagSel[d.key] = val; seg.querySelectorAll("button").forEach((x) => x.classList.remove("on")); b.classList.add("on"); };
+        seg.appendChild(b);
+      });
+      field.appendChild(seg);
+    } else {
+      const sel = document.createElement("select");
+      opts.forEach(([val, labl]) => { const o = document.createElement("option"); o.value = val; o.textContent = labl; if (val === init) o.selected = true; sel.appendChild(o); });
+      sel.onchange = () => { tagSel[d.key] = sel.value; };
+      field.appendChild(sel);
+    }
+    cont.appendChild(field);
+  }
+}
 
 function openAddModal() {
   editingId = null;
@@ -300,8 +393,8 @@ function openAddModal() {
   document.querySelectorAll("#segType button").forEach((x) => x.classList.toggle("on", x.dataset.v === "승인"));
   document.getElementById("mMerchant").value = "";
   document.getElementById("mAmount").value = "";
-  document.getElementById("mCategory").value = "";
   document.getElementById("mMemo").value = "";
+  buildTagControls(null, false);
   const now = new Date(), pad = (n) => String(n).padStart(2, "0");
   document.getElementById("mWhen").value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
   modal.classList.remove("hidden");
@@ -316,7 +409,7 @@ function openEditModal(tx) {
     `<div class="mh-m">${esc(tx.merchant) || "(가맹점 미상)"}</div>` +
     `<div class="mh-a">${sign}${fmt(tx.amount)} · ${tx.status}${tx.source === "manual" ? " · 직접입력" : (tx.cardName ? " · " + esc(tx.cardName) : "")}</div>`;
   document.getElementById("mHeader").classList.remove("hidden");
-  document.getElementById("mCategory").value = tx.categoryOverride || ""; // 비어있으면 자동분류
+  buildTagControls(tx.tagsStored, true);
   document.getElementById("mMemo").value = tx.memo || "";
   document.getElementById("mDelete").classList.toggle("hidden", tx.source !== "manual"); // 삭제는 수기건만
   modal.classList.remove("hidden");
@@ -328,20 +421,18 @@ document.getElementById("mCancel").onclick = closeModal;
 modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
 document.getElementById("mSave").onclick = async () => {
-  const category = document.getElementById("mCategory").value;
   const memo = document.getElementById("mMemo").value.trim();
+  const tags = { ...tagSel }; // {key: value}  (""=자동/기본)
   if (editingId) {
-    // 편집: 카테고리/메모만
-    const r = await fetch("/api/update?token=" + encodeURIComponent(TOKEN), { method: "POST", body: JSON.stringify({ id: editingId, category, memo }) });
+    const r = await fetch("/api/update?token=" + encodeURIComponent(TOKEN), { method: "POST", body: JSON.stringify({ id: editingId, tags, memo }) });
     if (!r.ok) { alert("수정 실패"); return; }
   } else {
-    // 추가
     const amount = document.getElementById("mAmount").value.trim();
     if (!amount) { alert("금액을 입력하세요"); return; }
     const whenLocal = document.getElementById("mWhen").value;
     const when = whenLocal ? new Date(whenLocal).toISOString() : new Date().toISOString();
     const merchant = document.getElementById("mMerchant").value.trim();
-    const r = await fetch("/api/manual?token=" + encodeURIComponent(TOKEN), { method: "POST", body: JSON.stringify({ merchant, amount, when, status: mType, category, memo }) });
+    const r = await fetch("/api/manual?token=" + encodeURIComponent(TOKEN), { method: "POST", body: JSON.stringify({ merchant, amount, when, status: mType, tags, memo }) });
     if (!r.ok) { alert("저장 실패"); return; }
   }
   closeModal();
@@ -355,13 +446,78 @@ document.getElementById("mDelete").onclick = async () => {
   await load();
 };
 
-// 거래 탭 → 편집 (이벤트 위임)
-document.getElementById("txList").addEventListener("click", (e) => {
+// 거래 탭 → 칩(2값)이면 즉시 토글, 아니면 편집 모달 (이벤트 위임)
+document.getElementById("txList").addEventListener("click", async (e) => {
   const row = e.target.closest(".tx");
   if (!row) return;
   const tx = ALL.find((t) => t.id === row.dataset.id);
-  if (tx) openEditModal(tx);
+  if (!tx) return;
+  const chip = e.target.closest(".chip.toggle");
+  if (chip && chip.dataset.dim) {
+    const d = dimByKey(chip.dataset.dim);
+    if (d && d.values.length === 2) {
+      const cur = (tx.tags && tx.tags[d.key]) || d.default;
+      const next = d.values[(d.values.indexOf(cur) + 1) % 2];
+      await fetch("/api/update?token=" + encodeURIComponent(TOKEN), { method: "POST", body: JSON.stringify({ id: tx.id, tags: { [d.key]: next } }) });
+      await load();
+      return;
+    }
+  }
+  openEditModal(tx);
 });
+
+// ---- 태그 축 설정 화면 ----
+const settings = document.getElementById("settings");
+let axisDraft = []; // 편집 중인 축 배열
+function renderAxisList() {
+  const list = document.getElementById("axisList");
+  list.innerHTML = "";
+  axisDraft.forEach((ax, i) => {
+    const box = document.createElement("div");
+    box.className = "axis-edit";
+    const infer = !!ax.infer;
+    box.innerHTML =
+      `<div class="arow"><span class="alabel">이름</span>` +
+        `<input data-i="${i}" data-f="label" value="${esc(ax.label || "")}" placeholder="예: 용도" ${infer ? "readonly" : ""}/>` +
+        (infer ? `<span class="locked">자동분류</span>` : `<button class="axdel" data-del="${i}">✕</button>`) +
+      `</div>` +
+      `<div class="arow"><span class="alabel">값</span>` +
+        `<input data-i="${i}" data-f="values" value="${esc((ax.values || []).join(", "))}" placeholder="쉼표로 구분: 혼자, 둘이"/></div>` +
+      `<div class="arow"><span class="alabel">기본값</span>` +
+        `<input data-i="${i}" data-f="default" value="${esc(ax.default || "")}" placeholder="기본값"/></div>`;
+    list.appendChild(box);
+  });
+  // 입력 반영
+  list.querySelectorAll("input").forEach((inp) => {
+    inp.oninput = () => {
+      const i = +inp.dataset.i, f = inp.dataset.f;
+      if (f === "values") axisDraft[i].values = inp.value.split(",").map((s) => s.trim()).filter(Boolean);
+      else axisDraft[i][f] = inp.value;
+    };
+  });
+  list.querySelectorAll("[data-del]").forEach((btn) => {
+    btn.onclick = () => { axisDraft.splice(+btn.dataset.del, 1); renderAxisList(); };
+  });
+}
+function openSettings() {
+  axisDraft = JSON.parse(JSON.stringify(TAGDIMS)); // 깊은 복사
+  renderAxisList();
+  settings.classList.remove("hidden");
+}
+document.getElementById("settingsBtn").onclick = openSettings;
+document.getElementById("sCancel").onclick = () => settings.classList.add("hidden");
+settings.onclick = (e) => { if (e.target === settings) settings.classList.add("hidden"); };
+document.getElementById("addAxis").onclick = () => { axisDraft.push({ label: "", values: [], default: "" }); renderAxisList(); };
+document.getElementById("sSave").onclick = async () => {
+  for (const ax of axisDraft) {
+    if (!ax.label || !ax.values || !ax.values.length) { alert("각 축에 이름과 값을 넣어주세요"); return; }
+    if (!ax.values.includes(ax.default)) ax.default = ax.values[ax.values.length - 1];
+  }
+  const r = await fetch("/api/tagdefs?token=" + encodeURIComponent(TOKEN), { method: "POST", body: JSON.stringify(axisDraft) });
+  if (!r.ok) { alert("저장 실패"); return; }
+  settings.classList.add("hidden");
+  await load();
+};
 
 function showApp() { document.getElementById("login").classList.add("hidden"); document.getElementById("app").classList.remove("hidden"); document.getElementById("fab").classList.remove("hidden"); }
 function showLogin() { document.getElementById("app").classList.add("hidden"); document.getElementById("login").classList.remove("hidden"); document.getElementById("fab").classList.add("hidden"); }
