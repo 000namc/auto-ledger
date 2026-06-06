@@ -1,0 +1,16 @@
+{
+  "name": "card-sms-budget",
+  "version": "1.0.0",
+  "description": "아이폰 단축어 + 카드 결제 문자(SMS)로 자동 수집하는 셀프호스팅 커플 가계부. 제로 의존성 Node + JSONL.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "make-icon": "node make-icon.js",
+    "import": "node import-xls.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {}
+}

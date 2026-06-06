@@ -1,0 +1,23 @@
+# 비밀값 — 절대 커밋 금지
+.webhook_secret
+.env
+
+# 개인 결제 데이터 (민감정보)
+transactions.jsonl
+captured.jsonl
+transactions.bak.*.jsonl
+seed.jsonl
+stats.txt
+
+# 카드사에서 받은 원본 내역 파일
+*.xls
+*.xlsx
+*.csv
+
+# 기타
+node_modules/
+.DS_Store
+*.log
+
+# 레거시(서버.js로 대체됨)
+capture-server.js

@@ -1,0 +1,24 @@
+# systemd 서비스 예시 — 서버에서 상시 실행 + 부팅 자동시작 + 죽으면 재시작
+#
+# 설치:
+#   1) 이 파일을 서버에 맞게 수정 (경로/사용자/비밀값)
+#   2) sudo cp budget.service.example /etc/systemd/system/budget.service
+#   3) sudo systemctl daemon-reload && sudo systemctl enable --now budget.service
+#   4) systemctl status budget.service  로 확인
+
+[Unit]
+Description=Card SMS Budget collector + dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/USER/card-sms-budget
+Environment=SMS_WEBHOOK_SECRET=여기에_무작위_비밀값
+Environment=PORT=8080
+ExecStart=/usr/bin/node /home/USER/card-sms-budget/server.js
+Restart=always
+RestartSec=3
+User=USER
+
+[Install]
+WantedBy=multi-user.target
