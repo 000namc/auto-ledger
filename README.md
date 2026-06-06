@@ -14,7 +14,7 @@ flowchart TD
       SC --> SV["🔎 금액·가맹점·날짜 파싱 → 💾 저장 + 중복 제거"]
     end
     SV --> DB["📊 가계부에 자동 기록"]
-    DB --> APP["📲 홈 화면 앱으로 톡 열어 확인 · 둘이 공유"]
+    DB --> APP["📲 홈 화면 앱으로 톡 열어 확인"]
 ```
 
 즉 **결제 한 번 = 가계부 한 줄.** 영수증 모으거나 직접 입력할 일이 없고, **홈 화면 아이콘**으로 톡 누르면 앱처럼 바로 열려요. 외부 서비스·DB·프레임워크 없이 **순수 Node + 사람이 읽는 JSONL 파일**로 굴러갑니다.
@@ -22,6 +22,11 @@ flowchart TD
 A self-hosted budget app that auto-collects card payment **SMS** on iPhone via **Shortcuts → webhook → parse → dashboard**. No bank linking, zero dependencies — plain Node and human-readable JSONL.
 
 ![license](https://img.shields.io/badge/license-MIT-blue) ![node](https://img.shields.io/badge/node-%E2%89%A518-green) ![deps](https://img.shields.io/badge/dependencies-0-brightgreen)
+
+<p align="center">
+  <img src="docs/preview.svg" alt="대시보드 미리보기 (데모 데이터)" width="300" />
+  <br/><sub>홈 화면 앱으로 열리는 대시보드 — 예시 데이터</sub>
+</p>
 
 ---
 
