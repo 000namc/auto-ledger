@@ -7,17 +7,17 @@
 은행·카드사 연동(스크래핑·오픈뱅킹)이나 외부 가계부 서비스 없이 동작해요. 아이폰 단축어가 결제 문자를 **내 서버**로 보내면, 서버가 파싱해서 저장하고 대시보드(PWA)로 보여줍니다. 금융 데이터는 전부 내 서버에만 남고, 같은 주소·암호로 **둘이 함께** 봐도 됩니다.
 
 ```mermaid
-flowchart LR
-    P["💳 카드로 결제<br/>— 내가 하는 건 이것뿐"] --> M["📩 결제 문자 도착"]
+flowchart TD
+    P["💳 카드로 결제 — 내가 하는 건 이것뿐"] --> M["📩 결제 문자 도착"]
     subgraph AUTO["⚙️ 나머지는 전부 자동 · 손 안 댐"]
-      direction LR
-      M --> SC["📱 단축어가 문자 가로채<br/>내 서버로 전송"]
-      SC --> SV["🔎 금액·가맹점·날짜 파싱<br/>💾 저장 + 중복 제거"]
+      M --> SC["📱 단축어가 문자 가로채 → 내 서버로 전송"]
+      SC --> SV["🔎 금액·가맹점·날짜 파싱 → 💾 저장 + 중복 제거"]
     end
-    SV --> DB["📊 가계부에 자동 기록<br/>대시보드로 한눈에"]
+    SV --> DB["📊 가계부에 자동 기록"]
+    DB --> APP["📲 홈 화면 앱으로 톡 열어 확인 · 둘이 공유"]
 ```
 
-즉 **결제 한 번 = 가계부 한 줄.** 영수증 모으거나 직접 입력할 일이 없어요. 외부 서비스·DB·프레임워크 없이 **순수 Node + 사람이 읽는 JSONL 파일**로 굴러갑니다.
+즉 **결제 한 번 = 가계부 한 줄.** 영수증 모으거나 직접 입력할 일이 없고, **홈 화면 아이콘**으로 톡 누르면 앱처럼 바로 열려요. 외부 서비스·DB·프레임워크 없이 **순수 Node + 사람이 읽는 JSONL 파일**로 굴러갑니다.
 
 A self-hosted budget app that auto-collects card payment **SMS** on iPhone via **Shortcuts → webhook → parse → dashboard**. No bank linking, zero dependencies — plain Node and human-readable JSONL.
 
