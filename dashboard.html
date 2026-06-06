@@ -21,7 +21,7 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--txt);
     font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif; }
-  body { padding: max(env(safe-area-inset-top), 16px) 16px calc(env(safe-area-inset-bottom) + 80px); max-width: 560px; margin: 0 auto; }
+  body { padding: max(env(safe-area-inset-top), 16px) 16px calc(env(safe-area-inset-bottom) + 80px); max-width: 560px; margin: 0 auto; overflow-x: hidden; }
   h1, h2, h3 { margin: 0; font-weight: 700; }
   .hidden { display: none !important; }
 
@@ -59,9 +59,9 @@
   .section h3 { font-size: 14px; color: var(--dim); margin-bottom: 12px; }
 
   /* 집계 카드 — 겹쳐 쌓인 스택 */
-  .deck { position: relative; margin-bottom: 34px; touch-action: pan-y; }
-  .bdcard { position: absolute; top: 0; left: 0; right: 0; margin: 0; padding-bottom: 18px;
-    transition: transform .22s ease; will-change: transform; }
+  .deck { position: relative; margin-bottom: 14px; touch-action: pan-y; }
+  .bdcard { position: absolute; top: 0; left: 0; right: 0; margin: 0; transform-origin: center center;
+    overflow: hidden; transition: transform .22s ease; will-change: transform; }
   .bdcard.front { position: relative; z-index: 10; box-shadow: 0 6px 18px rgba(0,0,0,.4); } /* 앞 카드: 흐름배치+그림자 */
   .bdhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .bdtitle { font-size: 14px; color: var(--dim); font-weight: 700; }
@@ -289,15 +289,21 @@ function layoutDeck() {
   const deck = document.getElementById("bdDeck"), cards = deck.children;
   if (!cards.length) return;
   deckActive = Math.max(0, Math.min(deckActive, cards.length - 1));
+  // 모든 카드 같은 높이로 (바닥이 삐져나오지 않게)
+  let maxH = 0;
+  for (const c of cards) c.style.height = "auto";
+  for (const c of cards) maxH = Math.max(maxH, c.offsetHeight);
   for (let i = 0; i < cards.length; i++) {
-    const ad = Math.abs(i - deckActive), c = cards[i];
-    c.style.opacity = "1"; // 흐림 없음 — 그냥 겹친 박스
+    const c = cards[i], delta = i - deckActive, ad = Math.abs(delta);
+    c.style.height = maxH + "px";
+    c.style.opacity = "1";
     if (ad === 0) {
       c.classList.add("front");
       c.style.transform = ""; c.style.zIndex = "10"; c.style.pointerEvents = "auto";
     } else {
       c.classList.remove("front");
-      c.style.transform = `translateY(${ad * 14}px)`; // 바닥 가장자리만 살짝 peek
+      const dir = delta < 0 ? -1 : 1; // 이전 카드는 왼쪽, 다음 카드는 오른쪽으로 5% peek
+      c.style.transform = `translateX(${dir * 5 * ad}%) scale(${1 - 0.04 * ad})`;
       c.style.zIndex = String(10 - ad);
       c.style.pointerEvents = "none";
     }
