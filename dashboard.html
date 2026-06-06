@@ -58,27 +58,31 @@
   .section { background: var(--card); border-radius: 18px; padding: 16px 16px 6px; margin-bottom: 14px; }
   .section h3 { font-size: 14px; color: var(--dim); margin-bottom: 12px; }
 
-  /* 집계 카드 캐러셀 */
-  .carousel { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch; margin-bottom: 8px; padding-bottom: 2px; }
-  .carousel::-webkit-scrollbar { display: none; }
-  .bdcard { scroll-snap-align: center; flex: 0 0 88%; margin-bottom: 0; }
-  .bdtitle { font-size: 14px; color: var(--dim); font-weight: 700; margin-bottom: 12px; }
+  /* 집계 카드 — 겹쳐 쌓인 스택 */
+  .deck { position: relative; margin-bottom: 30px; touch-action: pan-y; transition: height .25s ease; }
+  .bdcard { position: absolute; top: 0; left: 0; right: 0; margin: 0; transform-origin: top center;
+    transition: transform .25s ease, opacity .25s ease; will-change: transform; }
+  .bdhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .bdtitle { font-size: 14px; color: var(--dim); font-weight: 700; }
+  .ftog { display: inline-flex; align-items: center; gap: 4px; background: var(--card2); border: 1px solid var(--line);
+    color: var(--dim); padding: 5px 11px; border-radius: 9px; font-size: 12px; font-weight: 600; }
+  .ftog.act { color: var(--accent); border-color: var(--accent); }
+  .ftog.on { background: var(--accent); color: #fff; border-color: var(--accent); }
   .dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 14px; }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background .15s; }
-  .dot.on { background: var(--accent); }
+  .dot.on { background: var(--accent); width: 18px; border-radius: 3px; }
   /* 필터 표시 (총합 아래) */
-  .frow { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 5px; }
+  .amt-sub { font-size: 19px; font-weight: 600; color: var(--dim); }
+  .frow { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 6px; }
   .fchip { background: var(--accent); color: #fff; border: 0; padding: 4px 10px; border-radius: 9px;
     font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
   .fchip iconify-icon { font-size: 13px; }
-  .ftotal { color: var(--dim); font-size: 12px; }
 
   /* 카테고리 막대 */
-  .cat { margin-bottom: 12px; cursor: pointer; }
-  .cat .fbtn { color: var(--dim); font-size: 13px; margin-left: 5px; vertical-align: -0.1em; }
-  .cat.fon .fbtn { color: var(--accent); }
-  .cat.fon .amt { color: var(--accent); }
+  .cat { margin-bottom: 12px; }
+  .cat.dim { opacity: .38; }
+  .cat.fm { margin-bottom: 8px; }
+  .cat.fm .amt { display: inline-flex; align-items: center; gap: 8px; }
   .cat .row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
   .cat .row .name { font-weight: 600; }
   .cat .row .amt { color: var(--dim); }
@@ -219,7 +223,7 @@
     <div class="compare" id="compare"></div>
   </div>
 
-  <div id="bdCarousel" class="carousel"></div>
+  <div id="bdDeck" class="deck"></div>
   <div id="bdDots" class="dots"></div>
 
   <div class="section">
@@ -276,20 +280,24 @@ let TOKEN = localStorage.getItem("token") || "";
 let ALL = [];           // 전체 거래
 let cursor = null;      // {y, m} 보고 있는 달 (0-based month)
 let TAGDIMS = [];       // 태그 축 정의 (서버 /api/config)
-let bdIndex = 0;                // 캐러셀에서 보고 있는 카드 인덱스
-let filters = {};               // 필터 {axisKey: value} (축 간 AND)
-function syncDots() {
-  const c = document.getElementById("bdCarousel"), cards = c.children;
+let deckActive = 0;             // 스택에서 앞에 있는 카드 인덱스
+let filters = {};               // 필터 {axisKey: [포함값,...]} (축 내 OR, 축 간 AND). 키 없으면 전체
+let filterModeAxis = null;      // 필터 토글 모드인 카드의 축 key (null=없음)
+// 스택 레이아웃: 활성 카드는 앞, 뒤 카드는 살짝 작게+아래로 → 가장자리만 삐져나옴
+function layoutDeck() {
+  const deck = document.getElementById("bdDeck"), cards = deck.children;
   if (!cards.length) return;
-  let idx = 0, min = Infinity;
+  deckActive = Math.max(0, Math.min(deckActive, cards.length - 1));
   for (let i = 0; i < cards.length; i++) {
-    const center = cards[i].offsetLeft + cards[i].offsetWidth / 2 - c.scrollLeft;
-    const dist = Math.abs(center - c.offsetWidth / 2);
-    if (dist < min) { min = dist; idx = i; }
+    const ad = Math.abs(i - deckActive), c = cards[i];
+    c.style.zIndex = String(30 - ad);
+    c.style.opacity = ad === 0 ? "1" : ad === 1 ? "0.55" : "0.32";
+    c.style.transform = `translateY(${ad * 22}px) scale(${1 - ad * 0.05})`; // 아래로 내려 바닥 가장자리 peek
+    c.style.pointerEvents = ad === 0 ? "auto" : "none";
   }
-  bdIndex = idx;
+  deck.style.height = cards[deckActive].offsetHeight + "px";
   const dots = document.getElementById("bdDots").children;
-  for (let i = 0; i < dots.length; i++) dots[i].classList.toggle("on", i === idx);
+  for (let i = 0; i < dots.length; i++) dots[i].classList.toggle("on", i === deckActive);
 }
 let APPCFG = { monthStartDay: 1, cards: [] }; // 앱 설정
 let chipVis = JSON.parse(localStorage.getItem("chipVis") || "{}"); // {key:false}=숨김 (기기별)
@@ -342,30 +350,32 @@ function render() {
 
   const inMonth = ALL.filter((t) => { const a = ym(t.when); return a.y === y && a.m === m; });
 
-  // 필터(태그값) — {axisKey: value}, 축 간 AND
-  const fKeys = Object.keys(filters).filter((k) => filters[k] && TAGDIMS.some((d) => d.key === k));
-  const matchF = (t, except) => fKeys.every((k) => k === except || (t.tags && t.tags[k] === filters[k]));
+  // 필터(태그값) — {axisKey: [포함값,...]}, 축 내 OR · 축 간 AND
+  const fKeys = Object.keys(filters).filter((k) => Array.isArray(filters[k]) && TAGDIMS.some((d) => d.key === k));
+  const matchF = (t, except) => fKeys.every((k) => k === except || (t.tags && filters[k].includes(t.tags[k])));
   const filtered = inMonth.filter((t) => matchF(t, null));
 
   const totalAll = inMonth.reduce((s, t) => s + signedAmount(t), 0);
-  const totalF = filtered.reduce((s, t) => s + signedAmount(t), 0);
-  document.getElementById("totalAmount").textContent = fmt(fKeys.length ? totalF : totalAll);
+  const thisTotal = fKeys.length ? filtered.reduce((s, t) => s + signedAmount(t), 0) : totalAll;
+  document.getElementById("totalAmount").innerHTML =
+    fmt(thisTotal) + (fKeys.length ? ` <span class="amt-sub">/ ${fmt(totalAll)}</span>` : "");
 
+  // 지난달 대비 (필터 동일 적용)
+  const pm = m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 };
+  const prevTotal = ALL.filter((t) => { const a = ym(t.when); return a.y === pm.y && a.m === pm.m && matchF(t, null); }).reduce((s, t) => s + signedAmount(t), 0);
   const cmp = document.getElementById("compare");
+  let chtml = "";
   if (fKeys.length) {
-    const chips = fKeys.map((k) => { const d = dimByKey(k); return `<button class="fchip" data-fx="${esc(k)}">${esc(d ? d.label : k)}: ${esc(filters[k])} <iconify-icon icon="lucide:x"></iconify-icon></button>`; }).join("");
-    cmp.innerHTML = `<div class="frow">${chips}</div><div class="ftotal">전체 ${fmt(totalAll)} 중</div>`;
-    cmp.querySelectorAll(".fchip").forEach((b) => b.onclick = () => { delete filters[b.dataset.fx]; render(); });
-  } else {
-    const pm = m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 };
-    const prevTotal = ALL.filter((t) => { const a = ym(t.when); return a.y === pm.y && a.m === pm.m; }).reduce((s, t) => s + signedAmount(t), 0);
-    if (prevTotal > 0) {
-      const diff = totalAll - prevTotal, pct = Math.round((diff / prevTotal) * 100), up = diff >= 0;
-      cmp.innerHTML = `지난달보다 <span class="${up ? "up" : "down"}">${up ? "▲" : "▼"} ${Math.abs(pct)}%</span>`;
-    } else cmp.textContent = "";
+    chtml += `<div class="frow">` + fKeys.map((k) => { const d = dimByKey(k); return `<button class="fchip" data-fx="${esc(k)}">${esc(d ? d.label : k)}: ${esc(filters[k].join(", ") || "없음")} <iconify-icon icon="lucide:x"></iconify-icon></button>`; }).join("") + `</div>`;
   }
+  if (prevTotal > 0) {
+    const diff = thisTotal - prevTotal, pct = Math.round((diff / prevTotal) * 100), up = diff >= 0;
+    chtml += `<div>지난달보다 <span class="${up ? "up" : "down"}">${up ? "▲" : "▼"} ${Math.abs(pct)}%</span></div>`;
+  }
+  cmp.innerHTML = chtml;
+  cmp.querySelectorAll(".fchip").forEach((b) => b.onclick = () => { delete filters[b.dataset.fx]; render(); });
 
-  // 집계 카드 캐러셀 (축마다 카드 1개, 좌우 스와이프 전환). 카드 안 값 탭 → 필터 토글
+  // 집계 카드 — 겹쳐 쌓인 스택(스와이프). 우상단 필터 버튼 → 막대 숨기고 값별 토글
   const chipClass = (key, name) => {
     let c = "chip";
     if (key === "category") c += " cat";
@@ -374,9 +384,11 @@ function render() {
     else c += " tag";
     return c;
   };
-  const carousel = document.getElementById("bdCarousel");
-  carousel.innerHTML = TAGDIMS.map((d) => {
-    const set = inMonth.filter((t) => matchF(t, d.key)); // 자기 축 제외 필터 반영(패싯)
+  const isInc = (k, name) => !filters[k] || filters[k].includes(name);
+  const deck = document.getElementById("bdDeck");
+  deck.innerHTML = TAGDIMS.map((d) => {
+    const fmode = filterModeAxis === d.key;
+    const set = inMonth.filter((t) => matchF(t, d.key)); // 자기 축 제외(패싯)
     const map = {};
     for (const t of set) { const key = (t.tags && t.tags[d.key]) || "(없음)"; map[key] = (map[key] || 0) + signedAmount(t); }
     const rows = Object.entries(map).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
@@ -385,22 +397,36 @@ function render() {
       const cs = (d.style && d.style[name]) || {};
       const icon = cs.icon || (d.key === "category" ? (catIcon[name] || "lucide:tag") : "");
       const col = cs.color || "";
-      const on = filters[d.key] === name;
-      return `
-      <div class="cat ${on ? "fon" : ""}" data-bk="${esc(d.key)}" data-bv="${esc(name)}">
-        <div class="row"><span class="${chipClass(d.key, name)}"${col ? ` style="color:${esc(col)}"` : ""}>${iconHTML(icon)} ${esc(name)}</span><span class="amt">${fmt(v)} <iconify-icon class="fbtn" icon="${on ? "lucide:filter-x" : "lucide:filter"}"></iconify-icon></span></div>
+      const chip = `<span class="${chipClass(d.key, name)}"${col ? ` style="color:${esc(col)}"` : ""}>${iconHTML(icon)} ${esc(name)}</span>`;
+      if (fmode) {
+        const on = isInc(d.key, name);
+        return `<div class="cat fm" data-fk="${esc(d.key)}" data-fv="${esc(name)}">
+          <div class="row">${chip}<span class="amt">${fmt(v)} <span class="sw ${on ? "on" : ""}"></span></span></div>
+        </div>`;
+      }
+      const dim = isInc(d.key, name) ? "" : " dim";
+      return `<div class="cat${dim}">
+        <div class="row">${chip}<span class="amt">${fmt(v)}</span></div>
         <div class="track"><div class="fill" style="width:${Math.max(4, (v / mx) * 100)}%${col ? `;background:${esc(col)}` : ""}"></div></div>
       </div>`;
     }).join("") : `<div class="empty">내역 없음</div>`;
-    return `<div class="bdcard section"><div class="bdtitle">${esc(d.label)}별</div>${body}</div>`;
+    const active = !!filters[d.key];
+    return `<div class="bdcard section">
+      <div class="bdhead"><span class="bdtitle">${esc(d.label)}별</span>
+        <button class="ftog ${fmode ? "on" : ""}${active ? " act" : ""}" data-ftog="${esc(d.key)}"><iconify-icon icon="lucide:${fmode ? "check" : "filter"}"></iconify-icon> ${fmode ? "완료" : "필터"}</button></div>
+      ${body}</div>`;
   }).join("");
-  carousel.querySelectorAll(".cat[data-bk]").forEach((el) => el.onclick = () => {
-    const k = el.dataset.bk, v = el.dataset.bv;
-    if (filters[k] === v) delete filters[k]; else filters[k] = v;
+  deck.querySelectorAll("[data-ftog]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); const k = b.dataset.ftog; filterModeAxis = filterModeAxis === k ? null : k; render(); });
+  deck.querySelectorAll(".cat.fm").forEach((el) => el.onclick = () => {
+    const k = el.dataset.fk, v = el.dataset.fv;
+    const shown = [...el.parentElement.querySelectorAll(".cat.fm")].map((x) => x.dataset.fv);
+    const inc = new Set(filters[k] || shown);
+    if (inc.has(v)) inc.delete(v); else inc.add(v);
+    if (shown.every((s) => inc.has(s))) delete filters[k]; else filters[k] = [...inc];
     render();
   });
-  document.getElementById("bdDots").innerHTML = TAGDIMS.map((_, i) => `<span class="dot${i === bdIndex ? " on" : ""}"></span>`).join("");
-  requestAnimationFrame(() => { const c = carousel.children[bdIndex]; if (c) carousel.scrollLeft = c.offsetLeft - (carousel.clientWidth - c.offsetWidth) / 2; });
+  document.getElementById("bdDots").innerHTML = TAGDIMS.map((_, i) => `<span class="dot${i === deckActive ? " on" : ""}"></span>`).join("");
+  requestAnimationFrame(layoutDeck);
 
   // 거래 내역 (필터 반영, 최신순, 날짜별 그룹)
   const sorted = [...filtered].sort((a, b) => new Date(b.when) - new Date(a.when));
@@ -464,7 +490,27 @@ async function load() {
 
 document.getElementById("prev").onclick = () => { cursor = cursor.m === 0 ? { y: cursor.y - 1, m: 11 } : { y: cursor.y, m: cursor.m - 1 }; render(); };
 document.getElementById("next").onclick = () => { cursor = cursor.m === 11 ? { y: cursor.y + 1, m: 0 } : { y: cursor.y, m: cursor.m + 1 }; render(); };
-document.getElementById("bdCarousel").addEventListener("scroll", syncDots, { passive: true });
+// 스택 카드 좌우 스와이프
+(function attachSwipe() {
+  const deck = document.getElementById("bdDeck");
+  let sx = 0, sy = 0, drag = false, horiz = false, sup = 0;
+  deck.addEventListener("pointerdown", (e) => { sx = e.clientX; sy = e.clientY; drag = true; horiz = false; });
+  deck.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    if (!horiz && Math.abs(e.clientX - sx) > 10 && Math.abs(e.clientX - sx) > Math.abs(e.clientY - sy)) horiz = true;
+  });
+  deck.addEventListener("pointerup", (e) => {
+    if (!drag) return; drag = false;
+    const dx = e.clientX - sx;
+    if (horiz && Math.abs(dx) > 40) {
+      const n = deck.children.length;
+      deckActive = dx < 0 ? Math.min(n - 1, deckActive + 1) : Math.max(0, deckActive - 1);
+      layoutDeck();
+      sup = Date.now();
+    }
+  });
+  deck.addEventListener("click", (e) => { if (Date.now() - sup < 350) { e.stopPropagation(); e.preventDefault(); } }, true);
+})();
 
 // ---- 추가/편집 모달 ----
 const modal = document.getElementById("modal");
