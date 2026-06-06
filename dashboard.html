@@ -59,9 +59,10 @@
   .section h3 { font-size: 14px; color: var(--dim); margin-bottom: 12px; }
 
   /* 집계 카드 — 겹쳐 쌓인 스택 */
-  .deck { position: relative; margin-bottom: 30px; touch-action: pan-y; transition: height .25s ease; }
-  .bdcard { position: absolute; top: 0; left: 0; right: 0; margin: 0; transform-origin: top center;
+  .deck { position: relative; margin-bottom: 44px; touch-action: pan-y; }
+  .bdcard { position: absolute; top: 0; left: 0; right: 0; margin: 0;
     transition: transform .25s ease, opacity .25s ease; will-change: transform; }
+  .bdcard.front { position: relative; z-index: 10; } /* 활성 카드가 흐름에서 높이 결정 */
   .bdhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .bdtitle { font-size: 14px; color: var(--dim); font-weight: 700; }
   .ftog { display: inline-flex; align-items: center; gap: 4px; background: var(--card2); border: 1px solid var(--line);
@@ -109,7 +110,7 @@
   /* 직접입력 FAB */
   .fab { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 18px);
     background: var(--accent); color: #fff; border: 0; padding: 14px 26px; border-radius: 30px;
-    font-size: 16px; font-weight: 700; box-shadow: 0 6px 20px rgba(108,140,255,.4); z-index: 20; }
+    font-size: 16px; font-weight: 700; box-shadow: 0 6px 20px rgba(108,140,255,.4); z-index: 40; }
 
   /* 모달 */
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 30; display: flex; align-items: flex-end; justify-content: center; }
@@ -283,19 +284,24 @@ let TAGDIMS = [];       // 태그 축 정의 (서버 /api/config)
 let deckActive = 0;             // 스택에서 앞에 있는 카드 인덱스
 let filters = {};               // 필터 {axisKey: [포함값,...]} (축 내 OR, 축 간 AND). 키 없으면 전체
 let filterModeAxis = null;      // 필터 토글 모드인 카드의 축 key (null=없음)
-// 스택 레이아웃: 활성 카드는 앞, 뒤 카드는 살짝 작게+아래로 → 가장자리만 삐져나옴
+// 스택: 활성 카드는 일반 흐름(높이 자동), 나머지는 절대배치로 아래로 밀어 바닥 가장자리만 peek
 function layoutDeck() {
   const deck = document.getElementById("bdDeck"), cards = deck.children;
   if (!cards.length) return;
   deckActive = Math.max(0, Math.min(deckActive, cards.length - 1));
   for (let i = 0; i < cards.length; i++) {
     const ad = Math.abs(i - deckActive), c = cards[i];
-    c.style.zIndex = String(30 - ad);
-    c.style.opacity = ad === 0 ? "1" : ad === 1 ? "0.55" : "0.32";
-    c.style.transform = `translateY(${ad * 22}px) scale(${1 - ad * 0.05})`; // 아래로 내려 바닥 가장자리 peek
-    c.style.pointerEvents = ad === 0 ? "auto" : "none";
+    if (ad === 0) {
+      c.classList.add("front");
+      c.style.transform = ""; c.style.opacity = ""; c.style.zIndex = "10"; c.style.pointerEvents = "auto";
+    } else {
+      c.classList.remove("front");
+      c.style.transform = `translateY(${ad * 16}px)`;
+      c.style.opacity = ad === 1 ? "0.5" : "0.3";
+      c.style.zIndex = String(10 - ad);
+      c.style.pointerEvents = "none";
+    }
   }
-  deck.style.height = cards[deckActive].offsetHeight + "px";
   const dots = document.getElementById("bdDots").children;
   for (let i = 0; i < dots.length; i++) dots[i].classList.toggle("on", i === deckActive);
 }
