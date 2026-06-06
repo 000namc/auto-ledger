@@ -1,4 +1,4 @@
-# 📱💳 Card SMS Budget
+# 📱💳 Auto Ledger
 
 > **카드 결제 문자(SMS)가 오면 → 아이폰 단축어가 내 서버로 쏘고 → 자동 파싱·저장 → 대시보드(PWA)로 한눈에.**
 > 둘이 같은 데이터를 보는 **커플 가계부**. 외부 서비스·DB·프레임워크 없이 **순수 Node + JSONL 파일**로 돌아갑니다.
@@ -93,8 +93,8 @@ A self-hosted couple budget app that auto-collects card payment **SMS** on iPhon
 
 ### 1. 서버 띄우기
 ```bash
-git clone https://github.com/<you>/card-sms-budget.git
-cd card-sms-budget
+git clone https://github.com/<you>/auto-ledger.git
+cd auto-ledger
 cp .env.example .env
 # .env 의 SMS_WEBHOOK_SECRET 를 무작위 값으로:
 #   openssl rand -hex 16

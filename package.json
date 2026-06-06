@@ -1,5 +1,5 @@
 {
-  "name": "card-sms-budget",
+  "name": "auto-ledger",
   "version": "1.0.0",
   "description": "아이폰 단축어 + 카드 결제 문자(SMS)로 자동 수집하는 셀프호스팅 커플 가계부. 제로 의존성 Node + JSONL.",
   "type": "commonjs",
