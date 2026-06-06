@@ -5,8 +5,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "make-icon": "node make-icon.js",
-    "import": "node import-xls.js"
+    "make-icon": "node scripts/make-icon.js",
+    "import": "node scripts/import-xls.js"
   },
   "engines": {
     "node": ">=18"

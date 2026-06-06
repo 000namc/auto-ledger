@@ -1,9 +1,16 @@
 # 📱💳 Auto Ledger
 
-> **카드 결제 문자(SMS)가 오면 → 아이폰 단축어가 내 서버로 쏘고 → 자동 파싱·저장 → 대시보드(PWA)로 한눈에.**
-> 둘이 같은 데이터를 보는 **커플 가계부**. 외부 서비스·DB·프레임워크 없이 **순수 Node + JSONL 파일**로 돌아갑니다.
+**카드 쓸 때마다 오는 결제 문자(SMS)를 자동으로 모아 가계부를 채워주는 셀프호스팅 앱입니다.**
 
-A self-hosted couple budget app that auto-collects card payment **SMS** on iPhone via **Shortcuts → webhook → parse → dashboard**. Zero dependencies — just plain Node and human-readable JSONL files.
+은행·카드사 연동(스크래핑·오픈뱅킹)이나 외부 가계부 서비스 없이 동작해요. 아이폰 단축어가 결제 문자를 **내 서버**로 보내면, 서버가 파싱해서 저장하고 대시보드(PWA)로 보여줍니다. 금융 데이터는 전부 내 서버에만 남고, 같은 주소·암호로 **둘이 함께** 봐도 됩니다.
+
+```
+카드 결제 문자 → 아이폰 단축어 → 내 서버(웹훅) → 파싱·저장 → 대시보드(PWA)
+```
+
+외부 서비스·DB·프레임워크 없이 **순수 Node + 사람이 읽는 JSONL 파일**로 굴러갑니다.
+
+A self-hosted budget app that auto-collects card payment **SMS** on iPhone via **Shortcuts → webhook → parse → dashboard**. No bank linking, zero dependencies — plain Node and human-readable JSONL.
 
 ![license](https://img.shields.io/badge/license-MIT-blue) ![node](https://img.shields.io/badge/node-%E2%89%A518-green) ![deps](https://img.shields.io/badge/dependencies-0-brightgreen)
 
@@ -20,7 +27,7 @@ A self-hosted couple budget app that auto-collects card payment **SMS** on iPhon
              └→ POST /sms?token=***       (본문 = 문자 내용)
                   └→ 서버: 원문 보관 + 파싱 + 중복방지 + 저장(JSONL)
                        └→ 대시보드(PWA): 총지출 · 카테고리 · 내역 · 수기입력 · 편집
-                            └→ 너 아이폰 / 배우자 아이폰  (홈 화면에 추가)
+                            └→ 사용자 아이폰에서 홈 화면 앱처럼
 ```
 
 ## 왜 이렇게 만들었나
@@ -108,7 +115,7 @@ node server.js
 ### 3. (선택) 과거 내역 임포트
 카드사 웹에서 "이용내역"을 엑셀(.xls)로 받아서:
 ```bash
-node import-xls.js ~/Downloads/카드내역.xls "내 카드 표시명" > seed.jsonl
+node scripts/import-xls.js ~/Downloads/카드내역.xls "내 카드 표시명" > seed.jsonl
 # 기존 데이터가 있으면 먼저 백업!
 mv seed.jsonl transactions.jsonl
 ```
@@ -128,16 +135,22 @@ mv seed.jsonl transactions.jsonl
 
 ## 구조 · 파일 · API
 
-| 파일 | 역할 |
-|------|------|
-| `server.js` | HTTP 서버: 웹훅 수신, 파싱·저장, REST API, 대시보드 서빙, `.env` 로더 |
-| `parser.js` | 카드 결제 문자 파서 (현재 현대카드 양식) |
-| `dashboard.html` | 단일 파일 PWA 대시보드 (프레임워크 없음) |
-| `import-xls.js` | 카드사 이용내역 엑셀(HTML 표) → JSONL 임포트 |
-| `make-icon.js` | 홈 화면 아이콘 PNG 생성 (zlib만 사용) |
-| `budget.service.example` | systemd 서비스 템플릿 |
+```
+auto-ledger/
+├─ server.js          # HTTP 서버: 웹훅 수신·파싱·저장, REST API, 대시보드 서빙, .env 로더
+├─ parser.js          # 카드 결제 문자 파서 (⚠️ 현재 현대카드 양식 — 다른 카드는 수정 필요)
+├─ dashboard.html     # 단일 파일 PWA 대시보드 (프레임워크 없음)
+├─ icon.png           # 앱/홈화면 아이콘
+├─ scripts/
+│  ├─ import-xls.js   # 카드사 이용내역 엑셀(HTML 표) → JSONL 임포트
+│  ├─ make-icon.js    # 아이콘 PNG 생성 (zlib만)
+│  └─ icon-src.png    # 아이콘 원본 소재
+├─ deploy/
+│  └─ budget.service.example   # systemd 서비스 템플릿
+└─ docs/SPEC.md       # 초기 설계 메모
+```
 
-**데이터**: `transactions.jsonl`(거래), `captured.jsonl`(문자 원문 백업). 한 줄 = 한 레코드(JSON).
+**데이터**(gitignore, 런타임 생성): `transactions.jsonl`(거래), `captured.jsonl`(문자 원문 백업), `tags.json`(태그 축 정의), `settings.json`(월 시작일·카드). 한 줄 = 한 레코드(JSON).
 
 **API** (모두 `?token=` 필요)
 | 메서드 | 경로 | 설명 |
@@ -151,7 +164,15 @@ mv seed.jsonl transactions.jsonl
 
 ## 다른 카드사 지원하기
 
-`parser.js` 는 라인 기반 파서예요. 본인 카드사 결제 문자 몇 건을 (서버가 `captured.jsonl` 에 원문을 보관합니다) 보고 규칙을 추가하면 됩니다. 임포트는 카드사마다 엑셀 컬럼이 달라 `import-xls.js` 의 매핑을 손보면 됩니다. **PR 환영!**
+> ⚠️ **현재 `parser.js`는 현대카드 결제 문자 양식에만 맞춰져 있습니다.** 다른 카드사(국민·삼성·신한 등)나 은행 알림을 쓰면 그 양식에 맞게 파서를 고쳐야 해요.
+
+`parser.js`는 문자를 줄 단위로 읽어 금액·일시·가맹점·승인/취소를 뽑는 단순한 라인 파서예요. 적용 방법:
+
+1. 본인 카드 결제 문자를 몇 건 받아 흘려보내면, 서버가 원문을 `captured.jsonl`에 그대로 저장해요.
+2. 그 원문 양식을 보고 `parser.js`의 추출 규칙(줄 패턴)을 본인 카드사에 맞게 수정합니다.
+3. 과거 내역 임포트(`scripts/import-xls.js`)는 카드사마다 엑셀 컬럼이 달라, 컬럼 매핑을 손보면 됩니다.
+
+새 카드사 파서는 **PR 환영**이에요.
 
 ## 크레딧
 

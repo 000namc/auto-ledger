@@ -1,10 +1,12 @@
-// 앱/헤더 아이콘 생성: 소스 이모지(icon-src.png, Noto Emoji·Apache2.0)를
-// 깔끔한 그라데이션 배경에 합성 → icon.png (512x512). 제로 의존성(zlib만).
-// 실행: node make-icon.js [소스png]
+// 앱/헤더 아이콘 생성: 소스 이모지(scripts/icon-src.png, Noto Emoji·Apache2.0)를
+// 깔끔한 그라데이션 배경에 합성 → 루트의 icon.png (512x512). 제로 의존성(zlib만).
+// 실행: node scripts/make-icon.js [소스png]
 const fs = require("fs");
 const zlib = require("zlib");
+const path = require("path");
 
-const SRC = process.argv[2] || "icon-src.png";
+const ROOT = path.join(__dirname, "..");
+const SRC = process.argv[2] || path.join(__dirname, "icon-src.png");
 const S = 512;
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -67,7 +69,7 @@ for (let y = 0; y < S; y++) {
 }
 const ihdr = Buffer.alloc(13);
 ihdr.writeUInt32BE(S, 0); ihdr.writeUInt32BE(S, 4); ihdr[8] = 8; ihdr[9] = 2;
-fs.writeFileSync("icon.png", Buffer.concat([
+fs.writeFileSync(path.join(ROOT, "icon.png"), Buffer.concat([
   Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
   chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(raw, { level: 9 })), chunk("IEND", Buffer.alloc(0)),
 ]));
