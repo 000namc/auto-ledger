@@ -59,10 +59,10 @@
   .section h3 { font-size: 14px; color: var(--dim); margin-bottom: 12px; }
 
   /* 집계 카드 — 겹쳐 쌓인 스택 */
-  .deck { position: relative; margin-bottom: 44px; touch-action: pan-y; }
-  .bdcard { position: absolute; top: 0; left: 0; right: 0; margin: 0;
-    transition: transform .25s ease, opacity .25s ease; will-change: transform; }
-  .bdcard.front { position: relative; z-index: 10; } /* 활성 카드가 흐름에서 높이 결정 */
+  .deck { position: relative; margin-bottom: 34px; touch-action: pan-y; }
+  .bdcard { position: absolute; top: 0; left: 0; right: 0; margin: 0; padding-bottom: 18px;
+    transition: transform .22s ease; will-change: transform; }
+  .bdcard.front { position: relative; z-index: 10; box-shadow: 0 6px 18px rgba(0,0,0,.4); } /* 앞 카드: 흐름배치+그림자 */
   .bdhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .bdtitle { font-size: 14px; color: var(--dim); font-weight: 700; }
   .ftog { display: inline-flex; align-items: center; gap: 4px; background: var(--card2); border: 1px solid var(--line);
@@ -291,13 +291,13 @@ function layoutDeck() {
   deckActive = Math.max(0, Math.min(deckActive, cards.length - 1));
   for (let i = 0; i < cards.length; i++) {
     const ad = Math.abs(i - deckActive), c = cards[i];
+    c.style.opacity = "1"; // 흐림 없음 — 그냥 겹친 박스
     if (ad === 0) {
       c.classList.add("front");
-      c.style.transform = ""; c.style.opacity = ""; c.style.zIndex = "10"; c.style.pointerEvents = "auto";
+      c.style.transform = ""; c.style.zIndex = "10"; c.style.pointerEvents = "auto";
     } else {
       c.classList.remove("front");
-      c.style.transform = `translateY(${ad * 16}px)`;
-      c.style.opacity = ad === 1 ? "0.5" : "0.3";
+      c.style.transform = `translateY(${ad * 14}px)`; // 바닥 가장자리만 살짝 peek
       c.style.zIndex = String(10 - ad);
       c.style.pointerEvents = "none";
     }
