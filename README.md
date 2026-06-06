@@ -1,105 +1,185 @@
-# 📱 Card SMS Budget — 문자로 자동 수집하는 셀프호스팅 가계부
+# 📱💳 Card SMS Budget
 
-> 카드 **결제 문자(SMS)** 가 오면 → **아이폰 단축어** 가 내 서버로 쏘고 → **자동 파싱·저장** → **대시보드(PWA)** 로 한눈에.
-> 둘이 같은 데이터를 보는 **커플 가계부**. 제로 의존성 Node + JSONL 파일 저장. DB·프레임워크 없음.
+> **카드 결제 문자(SMS)가 오면 → 아이폰 단축어가 내 서버로 쏘고 → 자동 파싱·저장 → 대시보드(PWA)로 한눈에.**
+> 둘이 같은 데이터를 보는 **커플 가계부**. 외부 서비스·DB·프레임워크 없이 **순수 Node + JSONL 파일**로 돌아갑니다.
 
-A self-hosted couple budget app that auto-collects card payment **SMS** via **iPhone Shortcuts → webhook → parse → dashboard**. Zero dependencies (plain Node + JSONL).
+A self-hosted couple budget app that auto-collects card payment **SMS** on iPhone via **Shortcuts → webhook → parse → dashboard**. Zero dependencies — just plain Node and human-readable JSONL files.
+
+![license](https://img.shields.io/badge/license-MIT-blue) ![node](https://img.shields.io/badge/node-%E2%89%A518-green) ![deps](https://img.shields.io/badge/dependencies-0-brightgreen)
 
 ---
 
-## 왜 이렇게 만들었나
+## 목차
+- [동작 원리](#동작-원리)
+- [왜 이렇게 만들었나](#왜-이렇게-만들었나)
+- [주요 기능](#주요-기능)
+- [빠른 시작](#빠른-시작)
+- [자주 막히는 곳](#자주-막히는-곳-실제-삽질-모음)
+- [보안](#보안-)
+- [구조 · 파일 · API](#구조--파일--api)
+- [다른 카드사 지원하기](#다른-카드사-지원하기)
+- [로드맵](#로드맵)
+- [기여 · 라이선스](#기여--라이선스)
 
-안드로이드는 앱이 문자를 직접 읽어서 가계부 자동입력이 쉽지만, **아이폰은 앱이 SMS를 못 읽어요.** 그래서:
-
-- 아이폰 **단축어 "메시지 받을 때" 자동화** 로 결제 문자를 가로채서
-- 내 서버 **웹훅으로 POST** → 서버가 파싱해서 저장
-- **PWA 대시보드** 를 홈 화면에 추가하면 앱처럼 사용
-
-기존 가계부 앱에 카드/계좌를 연동하기 싫거나, 데이터를 내 서버에 두고 싶은 사람을 위한 구조예요.
+## 동작 원리
 
 ```
 카드 결제
    └→ 카드사 결제 문자(SMS) 수신 (아이폰)
-        └→ 단축어 자동화 "메시지 받을 때" (발신자 말고 내용으로 필터)
-             └→ POST /sms?token=*** (본문=문자 내용)
+        └→ 단축어 "메시지 받을 때" 자동화  (발신번호 말고 '내용'으로 필터)
+             └→ POST /sms?token=***       (본문 = 문자 내용)
                   └→ 서버: 원문 보관 + 파싱 + 중복방지 + 저장(JSONL)
-                       └→ 대시보드(PWA): 총지출/카테고리/내역, 수기입력, 카테고리 편집
+                       └→ 대시보드(PWA): 총지출 · 카테고리 · 내역 · 수기입력 · 편집
+                            └→ 너 아이폰 / 배우자 아이폰  (홈 화면에 추가)
 ```
+
+## 왜 이렇게 만들었나
+
+안드로이드는 앱이 문자를 직접 읽어 가계부 자동입력이 쉽지만, **아이폰은 앱이 SMS를 못 읽습니다.** 그래서 대부분의 "문자 자동수집" 가계부는 안드로이드 전용이에요. 이 프로젝트는 그 빈틈을 메웁니다:
+
+- 아이폰 **단축어 자동화**("메시지 받을 때")로 결제 문자를 가로채서
+- 내 서버 **웹훅으로 POST** → 서버가 파싱해서 저장
+- **PWA 대시보드**를 홈 화면에 추가하면 네이티브 앱처럼 사용
+
+기존 가계부 앱에 카드/계좌를 연동하기 싫거나, **금융 데이터를 내 서버에만** 두고 싶은 사람을 위한 구조입니다.
 
 ## 주요 기능
 
-- 📥 **자동 수집**: 결제 문자 → 단축어 → 웹훅 → 파싱·저장
-- 💰 **월별 총지출** (승인−취소 자동 차감) + 지난달 대비
-- 📊 **카테고리 자동 분류** (가맹점 키워드 기반) + 막대 그래프
-- ✍️ **수기 입력** (현금·누락분) / 거래 **탭해서 카테고리·메모 수정**
-- 📱 **PWA** — 아이폰 홈 화면에 추가하면 전체화면 앱처럼
-- 👫 **커플 공유** — 같은 URL/암호로 둘이 같은 데이터
-- 🗂 **과거 내역 임포트** — 카드사 엑셀(이용내역) 다운로드 → 한 번에 적재
-- 🪶 **제로 의존성** — `node server.js` 하나면 끝. 데이터는 사람이 읽을 수 있는 JSONL.
+| | |
+|---|---|
+| 📥 **자동 수집** | 결제 문자 → 단축어 → 웹훅 → 파싱·저장 (중복 방지) |
+| 💰 **월별 총지출** | 승인−취소 자동 차감, 지난달 대비 % |
+| 📊 **카테고리 분류** | 가맹점 키워드로 자동 분류 + 막대 그래프, 직접 수정 가능 |
+| ✍️ **수기 입력** | 현금·누락분 보충, 거래 탭해서 카테고리·메모 편집 |
+| 👫 **커플 공유** | 같은 URL/암호로 둘이 같은 데이터 실시간 공유 |
+| 🗂 **과거 내역 임포트** | 카드사 이용내역 엑셀 → 한 번에 적재 |
+| 📱 **PWA** | 홈 화면에 추가하면 전체화면 앱처럼 |
+| 🪶 **제로 의존성** | `node server.js` 하나. 데이터는 사람이 읽는 JSONL |
 
 ## 빠른 시작
 
 ### 1. 서버 띄우기
 ```bash
-git clone <이 저장소>
+git clone https://github.com/<you>/card-sms-budget.git
 cd card-sms-budget
 cp .env.example .env
-# .env 의 SMS_WEBHOOK_SECRET 를 무작위 값으로 (openssl rand -hex 16)
+# .env 의 SMS_WEBHOOK_SECRET 를 무작위 값으로:
+#   openssl rand -hex 16
 node server.js
 ```
 - 헬스체크: `curl http://localhost:8080/health` → `ok`
-- 상시 실행은 `budget.service.example` (systemd) 참고.
-- 공인 서버라면 방화벽에서 포트(기본 8080)를 열어야 외부에서 접속됩니다.
-  (오라클 클라우드 등은 **콘솔의 Security List**, 그리고 VM의 `iptables` 둘 다 열어야 할 수 있어요. iptables는 REJECT 규칙 **앞** 에 넣어야 합니다.)
+- 상시 실행(부팅 자동시작 + 죽으면 재시작)은 [`budget.service.example`](budget.service.example) (systemd) 참고
+- 공인 서버면 **방화벽에서 포트(기본 8080)** 를 열어야 외부 접속 가능
 
 ### 2. 아이폰 단축어 자동화
 **단축어 앱 → 자동화 → 개인용 자동화 생성**
-1. 트리거: **메시지** → **"메시지에 포함된 내용"** 에 카드사 이름(예: `현대카드`) 지정
-   - ⚠️ "보낸 사람(번호)" 로 거는 건 비추: 결제 알림 SMS는 **발신번호가 매번 달라요**. 내용으로 거세요.
+
+1. **트리거**: `메시지` → **"메시지에 포함된 내용"** 에 카드사 이름(예: `현대카드`)
    - **즉시 실행** 켜기 / **실행 전 확인** 끄기
-2. 동작: **"URL의 콘텐츠 가져오기"** (검색이 안 잡히면 동작 목록의 **"웹"** 범주에서)
-   - URL: `http://<서버주소>:8080/sms?token=<비밀값>`
-   - 방식: **POST**, 요청 본문: **JSON**, 필드 `text` = 변수 **"단축어 입력"**(받은 메시지)
-   - (또는 본문을 raw 텍스트로 받은 메시지만 보내도 서버가 처리합니다)
+2. **동작**: `URL의 콘텐츠 가져오기` (= *Get Contents of URL*)
+   - **URL**: `http://<서버주소>:8080/sms?token=<비밀값>`
+   - **방식**: `POST`
+   - **요청 본문**: `JSON` → 필드 `text` = 변수 **"단축어 입력"**(받은 메시지)
+   - (raw 텍스트로 받은 메시지만 보내도 서버가 처리합니다)
 
 ### 3. (선택) 과거 내역 임포트
 카드사 웹에서 "이용내역"을 엑셀(.xls)로 받아서:
 ```bash
 node import-xls.js ~/Downloads/카드내역.xls "내 카드 표시명" > seed.jsonl
-mv seed.jsonl transactions.jsonl   # 서버 데이터로 사용 (기존 파일 있으면 백업 먼저!)
+# 기존 데이터가 있으면 먼저 백업!
+mv seed.jsonl transactions.jsonl
 ```
-> 참고: 한국 카드사 ".xls" 는 실제론 HTML 표인 경우가 많아 그걸 파싱합니다. 현재 **현대카드** 양식 기준. 다른 카드사는 `import-xls.js` 의 컬럼 매핑을 손보면 됩니다.
 
 ### 4. 대시보드 열기
 - 브라우저로 `http://<서버주소>:8080/` → 암호(=비밀값) 입력 (기기에 저장되어 한 번만)
-- 아이폰: **Safari** 로 열고 → 공유 → **홈 화면에 추가** (Safari에서만 가능)
+- 아이폰: **Safari** 로 열고 → 공유(↑) → **홈 화면에 추가**
+
+## 자주 막히는 곳 (실제 삽질 모음)
+
+이 프로젝트를 처음 굴리며 실제로 막혔던 지점들이에요. 똑같이 헤매지 마세요 🙂
+
+<details>
+<summary><b>① 결제 문자가 단축어에 안 잡혀요</b></summary>
+
+트리거를 **"보낸 사람(번호)"** 으로 걸지 마세요. 카드 결제 알림 SMS는 `[Web발신]` 처럼 **발신번호가 매번 바뀝니다**. 연락처에 저장된 고객센터 번호(예: 1577-xxxx)와도 달라요.
+→ 반드시 **"메시지에 포함된 내용"** 에 카드사 이름으로 거세요.
+</details>
+
+<details>
+<summary><b>② "URL의 콘텐츠 가져오기"가 검색에 안 떠요</b></summary>
+
+영어 "url"은 자동완성이 방해할 때가 있어요. 한글 **"콘텐츠"** 로 검색하거나, 동작 추가 화면에서 **"웹"(Web) 범주**로 들어가면 있습니다. ("웹페이지의 콘텐츠 가져오기"가 아니라 **"URL의 콘텐츠 가져오기"** 예요.)
+</details>
+
+<details>
+<summary><b>③ 암호를 매번 다시 물어봐요</b></summary>
+
+암호는 브라우저 저장소(localStorage)에 저장돼 **한 번만** 입력하면 됩니다. 단 **카카오톡 등 인앱 브라우저**는 열 때마다 초기화돼요. 공유 시트에 **"Safari로 열기"** 가 보이면 인앱 브라우저란 신호 — **Safari로 열어 "홈 화면에 추가"** 한 뒤, 그 홈 화면 앱에서 한 번 로그인하면 유지됩니다. (Safari / 홈화면앱은 저장공간이 각각이라 각각 1회 로그인 필요)
+</details>
+
+<details>
+<summary><b>④ "홈 화면에 추가"가 공유 시트에 없어요</b></summary>
+
+**Safari 에서만** 나옵니다. 인앱 브라우저(카카오톡 등)에는 없어요. 먼저 "Safari로 열기" → 사파리의 공유 버튼에서 추가하세요.
+</details>
+
+<details>
+<summary><b>⑤ 서버 포트를 열었는데 외부에서 접속이 안 돼요 (특히 오라클 클라우드)</b></summary>
+
+두 군데를 다 열어야 할 수 있어요:
+1. **클라우드 콘솔 방화벽** (오라클: VCN → Security → Security List → Add Ingress Rule, TCP 8080, Source `0.0.0.0/0`)
+2. **VM 자체 iptables** — 이때 ACCEPT 규칙을 **REJECT 규칙보다 앞에** 넣어야 합니다:
+   ```bash
+   sudo iptables -L INPUT --line-numbers   # REJECT 줄 번호 확인
+   sudo iptables -I INPUT <REJECT번호> -p tcp --dport 8080 -j ACCEPT
+   sudo netfilter-persistent save
+   ```
+</details>
 
 ## 보안 ⚠️
 
-이 기본 구성은 **평문 HTTP + 토큰 1개** 입니다. 카드 내역은 민감정보이므로 실사용 전 권장:
-- **HTTPS** (리버스 프록시 / Cloudflare)
+기본 구성은 **평문 HTTP + 토큰 1개** 입니다. 카드 내역은 민감정보이니 실사용 전 권장:
+- **HTTPS** (리버스 프록시 또는 Cloudflare)
 - **Cloudflare Access** 등으로 허용 사용자(이메일) 제한
 - 서버 방화벽으로 신뢰 트래픽만 허용
 
 `SMS_WEBHOOK_SECRET` 와 `transactions.jsonl`(결제 데이터)은 **절대 커밋하지 마세요** — `.gitignore` 에 이미 포함돼 있습니다.
 
-## 구조 / 파일
+## 구조 · 파일 · API
 
 | 파일 | 역할 |
 |------|------|
-| `server.js` | HTTP 서버: 웹훅 수신, 파싱·저장, REST API, 대시보드 서빙 |
-| `parser.js` | 카드 결제 문자(SMS) 파서 (현재 현대카드 양식) |
+| `server.js` | HTTP 서버: 웹훅 수신, 파싱·저장, REST API, 대시보드 서빙, `.env` 로더 |
+| `parser.js` | 카드 결제 문자 파서 (현재 현대카드 양식) |
 | `dashboard.html` | 단일 파일 PWA 대시보드 (프레임워크 없음) |
 | `import-xls.js` | 카드사 이용내역 엑셀(HTML 표) → JSONL 임포트 |
-| `make-icon.js` | 홈 화면 아이콘(PNG) 생성기 (zlib만 사용) |
-| `budget.service.example` | systemd 서비스 예시 |
+| `make-icon.js` | 홈 화면 아이콘 PNG 생성 (zlib만 사용) |
+| `budget.service.example` | systemd 서비스 템플릿 |
 
-**데이터 저장**: `transactions.jsonl`(거래), `captured.jsonl`(문자 원문 백업) — 한 줄 = 한 레코드.
+**데이터**: `transactions.jsonl`(거래), `captured.jsonl`(문자 원문 백업). 한 줄 = 한 레코드(JSON).
 
-**API**: `GET /api/transactions` · `POST /api/manual` · `POST /api/update` · `POST /api/delete` · `POST /sms`(웹훅) — 모두 `?token=` 필요.
+**API** (모두 `?token=` 필요)
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| `POST` | `/sms` | 웹훅 수신(단축어가 호출) |
+| `GET`  | `/api/transactions` | 거래 전체(+카테고리) |
+| `POST` | `/api/manual` | 수기 입력 추가 |
+| `POST` | `/api/update` | 카테고리/메모 수정 |
+| `POST` | `/api/delete` | 거래 삭제 |
+| `GET`  | `/` | 대시보드(PWA) |
 
 ## 다른 카드사 지원하기
-`parser.js` 는 라인 기반 파서예요. 본인 카드사 결제 문자 몇 건을 `captured.jsonl`(원문 보관됨) 에서 보고 규칙을 추가하면 됩니다. PR 환영.
 
-## 라이선스
-MIT
+`parser.js` 는 라인 기반 파서예요. 본인 카드사 결제 문자 몇 건을 (서버가 `captured.jsonl` 에 원문을 보관합니다) 보고 규칙을 추가하면 됩니다. 임포트는 카드사마다 엑셀 컬럼이 달라 `import-xls.js` 의 매핑을 손보면 됩니다. **PR 환영!**
+
+## 로드맵
+
+- [ ] HTTPS / Cloudflare Access 가이드
+- [ ] 여러 카드 · 커플 개인/공동 지출 구분
+- [ ] 해외 결제 등 추가 SMS 양식 파서
+- [ ] 카드사별 파서 플러그인 구조
+
+## 기여 · 라이선스
+
+이슈 · PR 환영합니다. 새 카드사 양식이나 파서 개선이 특히 좋아요.
+[MIT](LICENSE) © 2026
