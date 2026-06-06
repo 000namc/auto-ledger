@@ -1,97 +1,74 @@
-// 홈화면/헤더 공용 아이콘 생성기 (제로 의존성). 512x512 금색 동전.
-// 실행: node make-icon.js  → icon.png
+// 앱/헤더 아이콘 생성: 소스 이모지(icon-src.png, Noto Emoji·Apache2.0)를
+// 깔끔한 그라데이션 배경에 합성 → icon.png (512x512). 제로 의존성(zlib만).
+// 실행: node make-icon.js [소스png]
 const fs = require("fs");
 const zlib = require("zlib");
 
+const SRC = process.argv[2] || "icon-src.png";
 const S = 512;
-const cx = S / 2, cy = S / 2;
-
-function crc32(buf) {
-  let c = ~0;
-  for (let i = 0; i < buf.length; i++) {
-    c ^= buf[i];
-    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
-  }
-  return ~c >>> 0;
-}
-function chunk(type, data) {
-  const len = Buffer.alloc(4); len.writeUInt32BE(data.length, 0);
-  const t = Buffer.from(type, "ascii");
-  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data])), 0);
-  return Buffer.concat([len, t, data, crc]);
-}
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
-// ₩(원) 표시를 단순 도형으로: 두 개의 V 획 + 가로 두 줄. 좌표는 동전 중심 기준.
-function wonMark(px, py, r) {
-  // 정규화 좌표 (-1..1)
-  const x = (px - cx) / r, y = (py - cy) / r;
-  if (Math.abs(x) > 0.62 || y < -0.5 || y > 0.62) return false;
-  const t = 0.085; // 획 두께
-  // 두 V: 왼쪽 \  /  오른쪽 \  /  → 네 개의 사선
-  const lines = [
-    [-0.5, -0.45, -0.22, 0.5], [-0.22, 0.5, 0.06, -0.45],   // 왼쪽 V
-    [0.06, -0.45, 0.34, 0.5], [0.34, 0.5, 0.5, -0.45],       // 오른쪽 ∧ 비슷
-  ];
-  for (const [x1, y1, x2, y2] of lines) {
-    const dx = x2 - x1, dy = y2 - y1;
-    const len2 = dx * dx + dy * dy;
-    let u = ((x - x1) * dx + (y - y1) * dy) / len2;
-    u = clamp(u, 0, 1);
-    const ddx = x - (x1 + u * dx), ddy = y - (y1 + u * dy);
-    if (ddx * ddx + ddy * ddy < t * t) return true;
+function crc32(buf) { let c = ~0; for (let i = 0; i < buf.length; i++) { c ^= buf[i]; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1)); } return ~c >>> 0; }
+function chunk(type, data) { const len = Buffer.alloc(4); len.writeUInt32BE(data.length, 0); const t = Buffer.from(type, "ascii"); const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(Buffer.concat([t, data])), 0); return Buffer.concat([len, t, data, crc]); }
+
+// 최소 PNG 디코더 (8bit RGBA, non-interlaced)
+function decodePNG(buf) {
+  let p = 8, w, h, bd, ct, il, idat = [];
+  while (p < buf.length) {
+    const len = buf.readUInt32BE(p), type = buf.toString("ascii", p + 4, p + 8), data = buf.slice(p + 8, p + 8 + len); p += 12 + len;
+    if (type === "IHDR") { w = data.readUInt32BE(0); h = data.readUInt32BE(4); bd = data[8]; ct = data[9]; il = data[12]; }
+    else if (type === "IDAT") idat.push(data);
+    else if (type === "IEND") break;
   }
-  // 가로 두 줄
-  for (const yy of [-0.05, 0.18]) {
-    if (Math.abs(y - yy) < t * 0.8 && Math.abs(x) < 0.5) return true;
+  if (bd !== 8 || ct !== 6 || il !== 0) throw new Error(`unsupported PNG ${bd}/${ct}/${il}`);
+  const rawz = zlib.inflateSync(Buffer.concat(idat)), bpp = 4, stride = w * bpp, out = Buffer.alloc(h * stride);
+  let pos = 0;
+  for (let y = 0; y < h; y++) {
+    const f = rawz[pos++];
+    for (let i = 0; i < stride; i++) {
+      const x = rawz[pos++];
+      const a = i >= bpp ? out[y * stride + i - bpp] : 0;
+      const b = y > 0 ? out[(y - 1) * stride + i] : 0;
+      const c = (y > 0 && i >= bpp) ? out[(y - 1) * stride + i - bpp] : 0;
+      let v;
+      if (f === 1) v = x + a; else if (f === 2) v = x + b; else if (f === 3) v = x + ((a + b) >> 1);
+      else if (f === 4) { const pp = a + b - c, pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c); v = x + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c); }
+      else v = x;
+      out[y * stride + i] = v & 255;
+    }
   }
-  return false;
+  return { w, h, data: out };
+}
+function sample(img, fx, fy) {
+  fx = clamp(fx, 0, img.w - 1); fy = clamp(fy, 0, img.h - 1);
+  const x0 = Math.floor(fx), y0 = Math.floor(fy), x1 = Math.min(x0 + 1, img.w - 1), y1 = Math.min(y0 + 1, img.h - 1), tx = fx - x0, ty = fy - y0;
+  const g = (xx, yy, k) => img.data[(yy * img.w + xx) * 4 + k], o = [];
+  for (let k = 0; k < 4; k++) o[k] = lerp(lerp(g(x0, y0, k), g(x1, y0, k), tx), lerp(g(x0, y1, k), g(x1, y1, k), tx), ty);
+  return o;
 }
 
+const src = decodePNG(fs.readFileSync(SRC));
+const draw = Math.round(S * 0.82), off = (S - draw) / 2; // 여백 두고 가운데
 const raw = Buffer.alloc(S * (1 + S * 3));
-const coinR = 196, rimIn = 172, rimOut = 196, ring = 150;
 for (let y = 0; y < S; y++) {
   raw[y * (1 + S * 3)] = 0;
   for (let x = 0; x < S; x++) {
-    const off = y * (1 + S * 3) + 1 + x * 3;
-    const dx = x - cx, dy = y - cy;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    let r, g, b;
-    if (d > coinR) {
-      // 배경: 부드러운 남보라 그라데이션
-      const t = (x + y) / (2 * S);
-      r = Math.round(lerp(38, 24, t));
-      g = Math.round(lerp(34, 22, t));
-      b = Math.round(lerp(64, 46, t));
-    } else {
-      const t = d / coinR;
-      // 금색 방사형 (중심 밝음 → 가장자리 진함)
-      r = lerp(255, 214, t);
-      g = lerp(226, 150, t);
-      b = lerp(140, 44, t);
-      // 테두리 림(진한 금)
-      if (d >= rimIn && d <= rimOut) { r = 188; g = 132; b = 36; }
-      // 안쪽 음각 링
-      if (Math.abs(d - ring) < 7) { r *= 0.82; g *= 0.82; b *= 0.82; }
-      // ₩ 마크 (진한 금 음각)
-      if (wonMark(x, y, coinR)) { r = 150; g = 100; b = 24; }
-      // 좌상단 스펙큘러 하이라이트
-      const nx = dx / coinR, ny = dy / coinR;
-      const hl = clamp(-(nx + ny) * 0.6, 0, 1) * (1 - t) * 80;
-      r = clamp(r + hl, 0, 255); g = clamp(g + hl, 0, 255); b = clamp(b + hl * 0.7, 0, 255);
+    // 배경: 남보라 대각 그라데이션
+    const tg = (x + y) / (2 * S);
+    let r = lerp(58, 30, tg), g = lerp(54, 28, tg), b = lerp(96, 58, tg);
+    if (x >= off && x < off + draw && y >= off && y < off + draw) {
+      const s = sample(src, (x - off) / draw * src.w, (y - off) / draw * src.h), al = s[3] / 255;
+      r = s[0] * al + r * (1 - al); g = s[1] * al + g * (1 - al); b = s[2] * al + b * (1 - al);
     }
-    raw[off] = r; raw[off + 1] = g; raw[off + 2] = b;
+    const o = y * (1 + S * 3) + 1 + x * 3;
+    raw[o] = Math.round(r); raw[o + 1] = Math.round(g); raw[o + 2] = Math.round(b);
   }
 }
-
 const ihdr = Buffer.alloc(13);
 ihdr.writeUInt32BE(S, 0); ihdr.writeUInt32BE(S, 4); ihdr[8] = 8; ihdr[9] = 2;
-const png = Buffer.concat([
+fs.writeFileSync("icon.png", Buffer.concat([
   Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-  chunk("IHDR", ihdr),
-  chunk("IDAT", zlib.deflateSync(raw, { level: 9 })),
-  chunk("IEND", Buffer.alloc(0)),
-]);
-fs.writeFileSync("icon.png", png);
-console.log("icon.png 생성됨", png.length, "bytes");
+  chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(raw, { level: 9 })), chunk("IEND", Buffer.alloc(0)),
+]));
+console.log("icon.png 생성됨");

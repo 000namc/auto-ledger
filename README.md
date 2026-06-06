@@ -212,6 +212,11 @@ mv seed.jsonl transactions.jsonl
 - [ ] 해외 결제 등 추가 SMS 양식 파서
 - [ ] 카드사별 파서 플러그인 구조
 
+## 크레딧
+
+- UI 아이콘: [Iconify](https://iconify.design) + [Lucide](https://lucide.dev) (ISC)
+- 앱 아이콘 소재: [Noto Emoji](https://github.com/googlefonts/noto-emoji) (Apache-2.0)
+
 ## 기여 · 라이선스
 
 이슈 · PR 환영합니다. 새 카드사 양식이나 파서 개선이 특히 좋아요.

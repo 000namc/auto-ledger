@@ -45,10 +45,10 @@ const DEFAULT_TAG_DIMS = [
     default: "미분류",
     infer: true,
     style: {
-      "식비": { icon: "🍚", color: "" }, "카페/간식": { icon: "☕", color: "" },
-      "편의점": { icon: "🏪", color: "" }, "쇼핑": { icon: "🛒", color: "" },
-      "교통": { icon: "🚗", color: "" }, "통신/구독": { icon: "📱", color: "" },
-      "의료": { icon: "💊", color: "" }, "미분류": { icon: "❓", color: "" },
+      "식비": { icon: "lucide:utensils", color: "" }, "카페/간식": { icon: "lucide:coffee", color: "" },
+      "편의점": { icon: "lucide:store", color: "" }, "쇼핑": { icon: "lucide:shopping-bag", color: "" },
+      "교통": { icon: "lucide:car-front", color: "" }, "통신/구독": { icon: "lucide:smartphone", color: "" },
+      "의료": { icon: "lucide:pill", color: "" }, "미분류": { icon: "lucide:circle-help", color: "" },
     },
   },
 ];

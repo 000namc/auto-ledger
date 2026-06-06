@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#0b0b0f" />
 <link rel="manifest" href="/manifest.json" />
 <link rel="apple-touch-icon" href="/icon.png" />
+<script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
 <title>우리 가계부</title>
 <style>
   :root {
@@ -111,6 +112,13 @@
   .chip { display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 9px;
     font-size: 12px; line-height: 1; border-radius: 9px; background: var(--card2); white-space: nowrap; }
   .chip .emo { font-size: 12px; }
+  iconify-icon { vertical-align: -0.125em; }
+  .chip iconify-icon { font-size: 13px; }
+  .srow iconify-icon { margin-right: 7px; vertical-align: -0.15em; opacity: .85; }
+  .cat .row .name iconify-icon { vertical-align: -0.15em; margin-right: 3px; }
+  .gear iconify-icon, .iconbtn iconify-icon { font-size: 18px; vertical-align: -0.2em; }
+  .fab iconify-icon { vertical-align: -0.12em; }
+  .vrow .vicon { width: 130px; }
   .chip.cat { color: var(--accent); }
   .chip.use { color: #e0c060; }
   .chip.use.together { color: #6ad1a0; }
@@ -174,7 +182,7 @@
 <div id="app" class="hidden">
   <div class="apptop">
     <span class="apptitle"><img src="/icon.png" class="logo" alt="" /> 우리 가계부</span>
-    <button id="settingsBtn" class="gear" title="설정">⚙️</button>
+    <button id="settingsBtn" class="gear" title="설정"><iconify-icon icon="lucide:settings"></iconify-icon></button>
   </div>
   <div class="monthnav">
     <button id="prev">‹</button>
@@ -201,7 +209,7 @@
   <div class="updated" id="updated"></div>
 </div>
 
-<button id="fab" class="fab hidden">+ 직접 입력</button>
+<button id="fab" class="fab hidden"><iconify-icon icon="lucide:plus"></iconify-icon> 직접 입력</button>
 
 <div id="modal" class="modal-bg hidden">
   <div class="modal">
@@ -232,9 +240,9 @@
 <div id="settings" class="modal-bg hidden">
   <div class="modal">
     <div class="shead">
-      <button id="sBack" class="iconbtn hidden">‹</button>
+      <button id="sBack" class="iconbtn hidden"><iconify-icon icon="lucide:chevron-left"></iconify-icon></button>
       <h3 id="sTitle">설정</h3>
-      <button id="sClose" class="iconbtn">✕</button>
+      <button id="sClose" class="iconbtn"><iconify-icon icon="lucide:x"></iconify-icon></button>
     </div>
     <div id="settingsBody"></div>
   </div>
@@ -252,8 +260,16 @@ let chipVis = JSON.parse(localStorage.getItem("chipVis") || "{}"); // {key:false
 function visibleDims() { return TAGDIMS.filter((d) => chipVis[d.key] !== false); }
 function cardOf(tx) { return (APPCFG.cards || []).find((c) => c.match && tx.cardName === c.match); }
 
-const catEmoji = { "편의점": "🏪", "카페/간식": "☕", "쇼핑": "🛒", "식비": "🍚",
-  "교통": "🚗", "통신/구독": "📱", "의료": "💊", "미분류": "❓", "기타": "💳" };
+// 카테고리 기본 아이콘 (Lucide 셋, Iconify)
+const catIcon = { "편의점": "lucide:store", "카페/간식": "lucide:coffee", "쇼핑": "lucide:shopping-bag",
+  "식비": "lucide:utensils", "교통": "lucide:car-front", "통신/구독": "lucide:smartphone",
+  "의료": "lucide:pill", "미분류": "lucide:circle-help", "기타": "lucide:tag" };
+// 아이콘 문자열 → HTML. "set:name" 형태면 Iconify, 아니면 이모지/텍스트.
+function iconHTML(icon) {
+  if (!icon) return "";
+  if (/^[a-z0-9-]+:[a-z0-9-]+$/i.test(icon)) return `<iconify-icon icon="${esc(icon)}"></iconify-icon>`;
+  return `<span class="emo">${esc(icon)}</span>`;
+}
 const dimByKey = (k) => TAGDIMS.find((d) => d.key === k);
 async function fetchConfig() {
   const r = await fetch("/api/config?token=" + encodeURIComponent(TOKEN));
@@ -316,7 +332,7 @@ function render() {
   const maxCat = cats.length ? cats[0][1] : 1;
   document.getElementById("cats").innerHTML = cats.length ? cats.map(([name, v]) => `
     <div class="cat">
-      <div class="row"><span class="name">${catEmoji[name] || "💳"} ${name}</span><span class="amt">${fmt(v)}</span></div>
+      <div class="row"><span class="name">${iconHTML(catIcon[name] || "lucide:tag")} ${esc(name)}</span><span class="amt">${fmt(v)}</span></div>
       <div class="track"><div class="fill" style="width:${Math.max(4, (v / maxCat) * 100)}%"></div></div>
     </div>`).join("") : `<div class="empty">내역 없음</div>`;
   document.getElementById("catSection").style.display = cats.length ? "" : "none";
@@ -351,8 +367,8 @@ function render() {
       else cls += " tag";
       const togglable = d.values.length === 2;
       if (togglable) cls += " toggle";
-      const icon = st.icon || (d.key === "category" ? (catEmoji[val] || "") : "");
-      const emo = icon ? `<span class="emo">${icon}</span>` : "";
+      const icon = st.icon || (d.key === "category" ? (catIcon[val] || "lucide:circle-help") : "");
+      const emo = iconHTML(icon);
       const swap = togglable ? `<span class="sw2">⇄</span>` : "";
       const colorStyle = st.color ? ` style="color:${esc(st.color)}"` : "";
       return `<span class="${cls}"${colorStyle}${togglable ? ` data-dim="${esc(d.key)}"` : ""}>${emo}${esc(val)}${swap}</span>`;
@@ -535,11 +551,11 @@ function renderSettings() {
   if (settingsPage === "menu") {
     body.innerHTML =
       `<div class="slist">
-        <button class="srow" data-go="tags"><span>🏷️ 태그 관리</span><span class="chev">›</span></button>
-        <button class="srow" data-go="view"><span>👁️ 거래내역 뷰</span><span class="chev">›</span></button>
-        <button class="srow" data-go="month"><span>📅 월 시작일</span><span class="chev">›</span></button>
-        <button class="srow" data-go="cards"><span>💳 카드 관리</span><span class="chev">›</span></button>
-        <button class="srow" id="miLogout"><span>🚪 로그아웃</span><span class="chev">›</span></button>
+        <button class="srow" data-go="tags"><span><iconify-icon icon="lucide:tags"></iconify-icon> 태그 관리</span><span class="chev">›</span></button>
+        <button class="srow" data-go="view"><span><iconify-icon icon="lucide:eye"></iconify-icon> 거래내역 뷰</span><span class="chev">›</span></button>
+        <button class="srow" data-go="month"><span><iconify-icon icon="lucide:calendar"></iconify-icon> 월 시작일</span><span class="chev">›</span></button>
+        <button class="srow" data-go="cards"><span><iconify-icon icon="lucide:credit-card"></iconify-icon> 카드 관리</span><span class="chev">›</span></button>
+        <button class="srow" id="miLogout"><span><iconify-icon icon="lucide:log-out"></iconify-icon> 로그아웃</span><span class="chev">›</span></button>
       </div>`;
     body.querySelectorAll("[data-go]").forEach((el) => el.onclick = () => { settingsPage = el.dataset.go; renderSettings(); });
     document.getElementById("miLogout").onclick = () => { if (confirm("로그아웃할까요?")) { localStorage.removeItem("token"); location.reload(); } };
@@ -615,11 +631,11 @@ function renderAxisList() {
     let h = `<div class="arow"><span class="alabel">이름</span>` +
       `<input data-i="${i}" data-f="label" value="${esc(ax.label || "")}" placeholder="예: 용도"/>` +
       (infer ? `<span class="locked">자동</span>` : `<button class="axdel" data-del="${i}">✕</button>`) + `</div>`;
-    h += `<div class="vlabel">값 · 아이콘 · 색</div>`;
+    h += `<div class="vlabel">값 · 아이콘 · 색 (아이콘은 이모지 또는 <a href="https://icon-sets.iconify.design/lucide/" target="_blank">아이콘이름</a>)</div>`;
     ax.vals.forEach((vv, j) => {
       h += `<div class="vrow">` +
         `<input class="vname" data-i="${i}" data-j="${j}" data-f="v" value="${esc(vv.v)}" placeholder="값"/>` +
-        `<input class="vicon" data-i="${i}" data-j="${j}" data-f="icon" value="${esc(vv.icon)}" placeholder="🙂"/>` +
+        `<input class="vicon" data-i="${i}" data-j="${j}" data-f="icon" value="${esc(vv.icon)}" placeholder="☕ 또는 lucide:coffee"/>` +
         `<input class="vcolor" type="color" data-i="${i}" data-j="${j}" data-f="color" value="${vv.color || "#888888"}"/>` +
         `<button class="axdel" data-vdel="${i}.${j}">✕</button></div>`;
     });
