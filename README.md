@@ -1,26 +1,50 @@
 # 📱💳 Auto Ledger
 
-**카드 쓸 때마다 오는 결제 문자(SMS)를 자동으로 모아 가계부를 채워주는 셀프호스팅 앱입니다.**
+**결제 문자(SMS)로 채워지는 가계부 — 단, 데이터는 내 서버에만, 파싱은 내가 코드로 바꾼다.**
 
-> 📌 지금은 **아이폰 + 현대카드** 기준으로 구현돼 있어요. 다른 기기(안드로이드)나 카드사를 쓰면 캡처 방식(단축어)과 파서를 그에 맞게 손봐야 합니다 — 구조는 그대로 재사용돼요.
+> An SMS-fed budget you fully own: your data never leaves your server, and every parsing rule is yours to rewrite.
 
-은행·카드사 연동(스크래핑·오픈뱅킹)이나 외부 가계부 서비스 없이 동작해요. 아이폰 단축어가 결제 문자를 **내 서버**로 보내면, 서버가 파싱해서 저장하고 대시보드(PWA)로 보여줍니다. 금융 데이터는 전부 내 서버에만 남고, 같은 주소·암호로 **둘이 함께** 봐도 됩니다.
+![license](https://img.shields.io/badge/license-MIT-blue) ![node](https://img.shields.io/badge/node-%E2%89%A518-green) ![deps](https://img.shields.io/badge/dependencies-0-brightgreen)
+
+뱅크샐러드·토스 같은 마이데이터 가계부는 편하지만 내 **모든 계좌 접근 권한**을 회사에 넘겨야 합니다. iOS용 자동 가계부(예: Spendy)는 잘 만들어졌지만 데이터가 **iCloud에 묶이고** 앱 내부는 손댈 수 없죠.
+
+Auto Ledger는 그 사이의 빈자리를 채웁니다:
+
+- 🔒 **계좌 위임 없음** — 카드 결제 문자 한 건씩만으로 돌아갑니다. 로그인도, 전체 계좌 접근도 없어요.
+- 🏠 **데이터는 내 서버에만** — 애플·회사·마이데이터 사업자 누구도 거치지 않습니다. 사람이 읽는 JSONL 파일로 내가 띄운 서버에만 남아요.
+- 🛠 **내가 원하는 형태로 직접 키운다** — 완성품을 쓰는 게 아니라, **AI에게 말로 시켜(바이브코딩)** 내 카드사·분류 규칙·화면을 내 취향대로 바꿔 가는 **출발점**이에요. 파서·분류·대시보드가 전부 열린 코드(MIT)이고, 제로 의존성·단일 파일이라 AI가 통째로 이해하고 고치기 쉽습니다.
 
 ```mermaid
 flowchart LR
     A["💳 카드 결제"] --> B["📩 결제 문자"] --> C["📱 단축어→서버"] --> D["🔎 파싱·저장"] --> E["📊 가계부 자동 기록"]
 ```
 
-**결제 한 번만 내 손으로, 나머지(문자→전송→파싱→기록)는 전부 자동.** 영수증 모으거나 직접 입력할 일 없고, **홈 화면 아이콘**으로 톡 누르면 앱처럼 바로 열려요. 외부 서비스·DB·프레임워크 없이 **순수 Node + 사람이 읽는 JSONL 파일**로 굴러갑니다.
+**카드 결제 한 번만 내 손으로, 나머지(문자 수신 → 서버 전송 → 파싱 → 기록)는 전부 자동.**
 
-A self-hosted budget app that auto-collects card payment **SMS** on iPhone via **Shortcuts → webhook → parse → dashboard**. No bank linking, zero dependencies — plain Node and human-readable JSONL.
-
-![license](https://img.shields.io/badge/license-MIT-blue) ![node](https://img.shields.io/badge/node-%E2%89%A518-green) ![deps](https://img.shields.io/badge/dependencies-0-brightgreen)
+> 🤖 **이건 '완성된 앱'이 아니라 '내 가계부의 씨앗'이에요.**
+> 코드를 잘 몰라도 괜찮습니다 — [Claude Code](https://claude.com/claude-code) 같은 AI 코딩 도구에게
+> *"카페 지출만 따로 모아 보여줘"*, *"이번 달 예산 넘으면 알려줘"*, *"OO카드 문자도 읽게 해줘"* 처럼
+> **말로 시키면(바이브코딩)** 단일 파일·제로 의존성 구조라 AI가 전체를 파악하고 그 자리에서 고쳐 줍니다.
+> 남이 정한 가계부에 나를 맞추는 게 아니라, **내가 원하는 형태의 가계부로 키워가는 것** — 그게 이 프로젝트의 핵심입니다.
 
 <p align="center">
   <img src="docs/preview.svg" alt="대시보드 미리보기 (데모 데이터)" width="300" />
   <br/><sub>홈 화면 앱으로 열리는 대시보드 — 예시 데이터</sub>
 </p>
+
+### 이런 분께 맞아요
+- 가계부 데이터를 회사 클라우드가 아니라 **내 서버에 직접** 두고 싶은 사람
+- **AI(바이브코딩)로 내 입맛대로** 기능·화면을 고쳐 가며 나만의 가계부를 만들고 싶은 사람
+- 작은 리눅스 서버(무료 VM 등)를 굴릴 수 있는 사람
+
+### 이런 분껜 안 맞아요 (솔직히)
+- **설치 없이 바로** 쓰고 싶다 → 뱅크샐러드·토스(마이데이터)가 훨씬 낫습니다
+- 아이폰에서 **예쁜 앱**이면 되고 서버는 싫다 → Spendy 같은 앱을 추천해요
+- 서버·코드를 만지고 싶지 않다 → 이 프로젝트는 맞지 않아요
+
+> 📌 현재 **아이폰 + 현대카드** 기준 구현입니다. 다른 기기·카드사는 캡처(단축어)와 파서를 그에 맞게 고치면 돼요 — 구조는 그대로 재사용됩니다.
+
+A self-hosted budget app that auto-collects card payment **SMS** on iPhone via **Shortcuts → webhook → parse → dashboard**. No bank linking, zero dependencies — plain Node and human-readable JSONL.
 
 ---
 
